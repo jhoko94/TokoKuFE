@@ -14,7 +14,7 @@ import Pagination from '../components/Pagination';
 
 function PageMasterBarang() {
   // 1. Ambil fungsi dari store
-  const { deleteProduct, fetchProductsPaginated, products: allProducts, exportProducts, distributors, bulkUpdateDistributor, bulkUpdateUnit, saveProduct } = useStore();
+  const { deleteProduct, fetchProductsPaginated, products: allProducts, exportProducts, distributors, bulkUpdateDistributor, bulkUpdateUnit, saveProduct, init } = useStore();
   
   // 2. State Lokal
   const [searchTerm, setSearchTerm] = useState('');
@@ -40,6 +40,7 @@ function PageMasterBarang() {
   const [modalState, setModalState] = useState(null);
   const [printLabelState, setPrintLabelState] = useState(null); // {product, unit}
   const [barcodeGenState, setBarcodeGenState] = useState(null); // {product, unit}
+  const [openDropdownId, setOpenDropdownId] = useState(null); // ID produk yang dropdown-nya terbuka
   
   // State untuk modal konfirmasi hapus
   const [productToDelete, setProductToDelete] = useState(null);
@@ -138,6 +139,29 @@ function PageMasterBarang() {
   
   const handleCloseModal = () => {
     setModalState(null);
+  };
+
+  // Handler untuk reload data setelah save
+  const handleProductSaved = async () => {
+    // Reload data setelah save berhasil
+    try {
+      // Refresh bootstrap data untuk update dropdown satuan (allProducts)
+      await init();
+      
+      // Reload tabel dengan data terbaru
+      const response = await fetchProductsPaginated(
+        currentPage, 
+        itemsPerPage, 
+        searchTerm,
+        filterSatuanKecil,
+        filterSatuanBesar,
+        filterDistributor
+      );
+      setProducts(response.data);
+      setPagination(response.pagination);
+    } catch (error) {
+      console.error("Gagal memuat produk setelah save:", error);
+    }
   };
   
   const handleConfirmDelete = async () => {
@@ -383,15 +407,22 @@ function PageMasterBarang() {
                       </tr>
                     ) : (
                       products.map(product => {
+                      // Ambil satuan kecil (conversion = 1)
                       const satuanKecil = product.units.find(u => u.conversion === 1) || { name: 'N/A' };
-                      const satuanBesar = product.units.find(u => u.conversion > 1) || null;
-                      const satuanBesarString = satuanBesar 
-                          ? `${satuanBesar.name} (${satuanBesar.conversion}x)` 
+                      
+                      // Ambil semua satuan besar (conversion > 1) dan urutkan
+                      const satuanBesarList = product.units
+                        .filter(u => u.conversion > 1)
+                        .sort((a, b) => a.conversion - b.conversion);
+                      
+                      // Format satuan besar: tampilkan semua, pisahkan dengan koma
+                      const satuanBesarString = satuanBesarList.length > 0
+                          ? satuanBesarList.map(u => `${u.name} (${u.conversion}x)`).join(', ')
                           : 'N/A';
                           
                       return (
                         <tr key={product.id}>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                             <input
                               type="checkbox"
                               checked={selectedProducts.has(product.id)}
@@ -399,51 +430,122 @@ function PageMasterBarang() {
                               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                             />
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{product.sku}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{product.name}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.distributor?.name || 'N/A'}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{satuanKecil.name}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{satuanBesarString}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <div className="flex items-center justify-end gap-2">
-                              {product.units.map(unit => (
-                                <div key={unit.id} className="flex gap-1">
-                                  <button
-                                    onClick={() => setPrintLabelState({ product, unit })}
-                                    className="text-blue-500 hover:text-blue-700"
-                                    title={`Print Label ${unit.name}`}
-                                  >
-                                    <PrinterIcon className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => setBarcodeGenState({ product, unit })}
-                                    className="text-green-500 hover:text-green-700"
-                                    title={`Generate Barcode ${unit.name}`}
-                                  >
-                                    <QrCodeIcon className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              ))}
-                              <button 
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 hidden sm:table-cell">{product.sku}</td>
+                          <td className="px-3 sm:px-6 py-4 text-sm text-gray-700">
+                            <div className="font-medium">{product.name}</div>
+                            <div className="text-xs text-gray-500 sm:hidden mt-1">Kode: {product.sku}</div>
+                          </td>
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">{product.distributor?.name || 'N/A'}</td>
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">{satuanKecil.name}</td>
+                          <td className="px-3 sm:px-6 py-4 text-sm text-gray-500 hidden lg:table-cell">
+                            <div className="max-w-xs truncate" title={satuanBesarString}>
+                              {satuanBesarString}
+                            </div>
+                          </td>
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div className="flex items-center justify-end gap-1">
+                              {/* Edit Button */}
+                              <button
                                 onClick={() => handleOpenModal(product)}
-                                className="text-yellow-500 hover:text-yellow-700" 
+                                className="text-yellow-600 hover:text-yellow-800 p-1"
                                 title="Edit"
                               >
-                                <PencilIcon className="w-5 h-5" />
+                                <PencilIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                               </button>
-                              <button 
+                              
+                              {/* Print & Barcode - Dropdown jika lebih dari 1 unit */}
+                              {product.units && product.units.length > 1 ? (
+                                <div className="relative">
+                                  <button
+                                    onClick={() => setOpenDropdownId(openDropdownId === product.id ? null : product.id)}
+                                    className="text-blue-500 hover:text-blue-700 p-1 relative"
+                                    title="Print Label / Generate Barcode"
+                                  >
+                                    <PrinterIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+                                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
+                                      {product.units.length}
+                                    </span>
+                                  </button>
+                                  {/* Dropdown Menu */}
+                                  {openDropdownId === product.id && (
+                                    <>
+                                      {/* Backdrop untuk menutup dropdown saat klik di luar */}
+                                      <div 
+                                        className="fixed inset-0 z-40" 
+                                        onClick={() => setOpenDropdownId(null)}
+                                      ></div>
+                                      <div className="absolute right-0 mt-1 w-56 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+                                        <div className="py-1 max-h-64 overflow-y-auto">
+                                          {product.units.map(unit => (
+                                            <div key={unit.id} className="border-b border-gray-100 last:border-b-0">
+                                              <div className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-50">
+                                                {unit.name} {unit.conversion > 1 && `(${unit.conversion}x)`}
+                                              </div>
+                                              <div className="flex">
+                                                <button
+                                                  onClick={() => {
+                                                    setPrintLabelState({ product, unit });
+                                                    setOpenDropdownId(null);
+                                                  }}
+                                                  className="flex-1 px-3 py-2 text-xs text-blue-600 hover:bg-blue-50 flex items-center justify-center gap-1.5 transition-colors"
+                                                  title={`Print Label ${unit.name}`}
+                                                >
+                                                  <PrinterIcon className="w-3.5 h-3.5" />
+                                                  <span>Print</span>
+                                                </button>
+                                                <button
+                                                  onClick={() => {
+                                                    setBarcodeGenState({ product, unit });
+                                                    setOpenDropdownId(null);
+                                                  }}
+                                                  className="flex-1 px-3 py-2 text-xs text-green-600 hover:bg-green-50 flex items-center justify-center gap-1.5 transition-colors"
+                                                  title={`Generate Barcode ${unit.name}`}
+                                                >
+                                                  <QrCodeIcon className="w-3.5 h-3.5" />
+                                                  <span>Barcode</span>
+                                                </button>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              ) : product.units && product.units.length === 1 ? (
+                                // Jika hanya 1 unit, tampilkan langsung tanpa dropdown
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => setPrintLabelState({ product, unit: product.units[0] })}
+                                    className="text-blue-500 hover:text-blue-700 p-1"
+                                    title={`Print Label ${product.units[0].name}`}
+                                  >
+                                    <PrinterIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+                                  </button>
+                                  <button
+                                    onClick={() => setBarcodeGenState({ product, unit: product.units[0] })}
+                                    className="text-green-500 hover:text-green-700 p-1"
+                                    title={`Generate Barcode ${product.units[0].name}`}
+                                  >
+                                    <QrCodeIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+                                  </button>
+                                </div>
+                              ) : null}
+                              
+                              {/* Delete Button */}
+                              <button
                                 onClick={() => setProductToDelete(product)}
-                                className="text-red-500 hover:text-red-700" 
+                                className="text-red-600 hover:text-red-800 p-1"
                                 title="Hapus"
                               >
-                                <TrashIcon className="w-5 h-5" />
+                                <TrashIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                               </button>
                             </div>
                           </td>
                         </tr>
                       );
                     })
-                    )}
+                  )}
                   </tbody>
                 </table>
               </div>
@@ -477,6 +579,7 @@ function PageMasterBarang() {
           // Jika modalState adalah 'new', kirim null. Jika objek, kirim objek itu.
           productToEdit={modalState === 'new' ? null : modalState}
           onClose={handleCloseModal}
+          onSave={handleProductSaved}
         />
       )}
       

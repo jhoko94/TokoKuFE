@@ -14,7 +14,7 @@ const DEFAULT_FORM_DATA = {
   ]
 };
 
-export default function ModalMasterBarang({ productToEdit, onClose }) {
+export default function ModalMasterBarang({ productToEdit, onClose, onSave }) {
   const { distributors, saveProduct } = useStore(); // Ambil data & fungsi dari Context
   
   // 'formData' adalah state lokal yang menampung SEMUA data di form
@@ -31,9 +31,21 @@ export default function ModalMasterBarang({ productToEdit, onClose }) {
   useEffect(() => {
     if (productToEdit) {
       // Mode EDIT: Isi form dengan data produk
-      setFormData(productToEdit);
+      // PENTING: Sort units untuk memastikan satuan kecil (conversion = 1) selalu di index 0
+      const sortedUnits = [...(productToEdit.units || [])].sort((a, b) => {
+        // Satuan dengan conversion = 1 harus di index 0
+        if (a.conversion === 1 && b.conversion !== 1) return -1;
+        if (a.conversion !== 1 && b.conversion === 1) return 1;
+        // Jika keduanya bukan conversion = 1, urutkan berdasarkan conversion
+        return a.conversion - b.conversion;
+      });
+      
+      setFormData({
+        ...productToEdit,
+        units: sortedUnits
+      });
       // Siapkan state untuk input barcode (satu string kosong untuk setiap unit)
-      setNewBarcodes(new Array(productToEdit.units.length).fill(''));
+      setNewBarcodes(new Array(sortedUnits.length).fill(''));
     } else {
       // Mode ADD: Reset form ke default
       setFormData(DEFAULT_FORM_DATA);
@@ -85,7 +97,7 @@ export default function ModalMasterBarang({ productToEdit, onClose }) {
         ...prev,
         units: [
             ...prev.units,
-            { name: '', price: 0, conversion: 1, barcodes: [] } // Data unit baru
+            { name: '', price: 0, conversion: 2, barcodes: [] } // Data unit baru - default conversion 2 untuk satuan besar
         ]
     }));
     // Tambahkan juga slot untuk input barcode baru
@@ -158,15 +170,31 @@ export default function ModalMasterBarang({ productToEdit, onClose }) {
     if (!formData.units || formData.units.length === 0) {
       newErrors.units = 'Minimal harus ada 1 satuan';
     } else {
-      formData.units.forEach((unit, index) => {
+      // PENTING: Sort units untuk memastikan satuan kecil (conversion = 1) selalu di index 0
+      const sortedUnits = [...formData.units].sort((a, b) => {
+        if (a.conversion === 1 && b.conversion !== 1) return -1;
+        if (a.conversion !== 1 && b.conversion === 1) return 1;
+        return a.conversion - b.conversion;
+      });
+      
+      sortedUnits.forEach((unit, index) => {
         if (!unit.name || !unit.name.trim()) {
           newErrors[`unit_${index}_name`] = 'Nama satuan harus diisi';
         }
         if (!unit.price || unit.price <= 0) {
           newErrors[`unit_${index}_price`] = 'Harga satuan harus > 0';
         }
-        if (!unit.conversion || unit.conversion <= 0) {
-          newErrors[`unit_${index}_conversion`] = 'Konversi satuan harus > 0';
+        
+        // Validasi khusus untuk satuan kecil (index 0)
+        if (index === 0) {
+          if (unit.conversion !== 1) {
+            newErrors[`unit_${index}_conversion`] = 'Satuan kecil harus memiliki konversi = 1';
+          }
+        } else {
+          // Validasi untuk satuan besar (index > 0)
+          if (!unit.conversion || unit.conversion <= 1) {
+            newErrors[`unit_${index}_conversion`] = 'Satuan besar harus memiliki konversi > 1';
+          }
         }
       });
     }
@@ -178,8 +206,23 @@ export default function ModalMasterBarang({ productToEdit, onClose }) {
     }
     
     try {
-      // Panggil fungsi dari Context untuk menyimpan
-      await saveProduct(formData);
+      // PENTING: Sort units sebelum dikirim ke backend
+      // Pastikan satuan kecil (conversion = 1) selalu di index 0
+      const sortedUnits = [...formData.units].sort((a, b) => {
+        if (a.conversion === 1 && b.conversion !== 1) return -1;
+        if (a.conversion !== 1 && b.conversion === 1) return 1;
+        return a.conversion - b.conversion;
+      });
+      
+      // Panggil fungsi dari Context untuk menyimpan dengan units yang sudah terurut
+      await saveProduct({
+        ...formData,
+        units: sortedUnits
+      });
+      // Panggil callback onSave jika ada (untuk reload data di parent)
+      if (onSave) {
+        onSave();
+      }
       onClose(); // Tutup modal
     } catch (error) {
       // Error sudah ditangani di context dengan toast
@@ -192,7 +235,7 @@ export default function ModalMasterBarang({ productToEdit, onClose }) {
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={onClose}></div>
       
-      <div className="modal-content !max-w-lg"> {/* Override max-width */}
+      <div className="modal-content !max-w-2xl"> {/* Override max-width untuk form yang lebih lebar */}
         <h3 className="text-xl font-bold mb-4">{title}</h3>
         
         <form onSubmit={handleSubmit}>
@@ -252,93 +295,199 @@ export default function ModalMasterBarang({ productToEdit, onClose }) {
 
             {/* --- Bagian Unit (Logika Dinamis) --- */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">Satuan, Harga Jual, & Barcode:</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Satuan, Harga Jual, & Barcode:</label>
               {errors.units && <p className="text-red-500 text-xs mt-1">{errors.units}</p>}
-              <div className="space-y-2 mt-2">
-                
-                {formData.units.map((unit, index) => (
-                  <div key={index} className="p-3 border rounded-lg bg-gray-50 space-y-2">
-                    {/* Baris 1: Nama & Konversi */}
+              
+              {/* SATUAN KECIL */}
+              <div className="mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                  <label className="text-sm font-semibold text-blue-700">SATUAN KECIL (Satuan Dasar)</label>
+                </div>
+                <p className="text-xs text-gray-600 mb-2 ml-4">
+                  Satuan terkecil untuk barang ini. Contoh: kg, liter, pcs, botol. Konversi selalu = 1.
+                </p>
+                {formData.units.length > 0 && (
+                  <div className="p-3 border-2 border-blue-200 rounded-lg bg-blue-50 space-y-2">
                     <div className="flex gap-2">
                       <div className="w-1/2">
+                        <label className="text-xs text-gray-600 mb-1 block">Nama Satuan Kecil:</label>
                         <input 
                           type="text" 
-                          placeholder="Nama Satuan" 
-                          value={unit.name}
-                          onChange={(e) => handleUnitChange(index, 'name', e.target.value)}
-                          className={`w-full p-2 border rounded-lg ${errors[`unit_${index}_name`] ? 'border-red-500' : 'border-gray-300'} ${index === 0 ? 'font-bold' : ''}`}
+                          placeholder="Contoh: kg, liter, pcs" 
+                          value={formData.units[0].name}
+                          onChange={(e) => handleUnitChange(0, 'name', e.target.value)}
+                          className={`w-full p-2 border rounded-lg font-semibold ${errors[`unit_0_name`] ? 'border-red-500' : 'border-blue-300'}`}
                           required 
                         />
-                        {errors[`unit_${index}_name`] && <p className="text-red-500 text-xs mt-1">{errors[`unit_${index}_name`]}</p>}
+                        {errors[`unit_0_name`] && <p className="text-red-500 text-xs mt-1">{errors[`unit_0_name`]}</p>}
                       </div>
                       
-                      <div className="w-1/2 flex items-center gap-1">
-                        <label className="text-sm">Isi:</label>
-                        <div className="flex-1">
+                      <div className="w-1/2">
+                        <label className="text-xs text-gray-600 mb-1 block">Konversi:</label>
+                        <div className="flex items-center gap-1">
                           <input 
                             type="number" 
-                            placeholder="Isi" 
-                            value={unit.conversion}
-                            readOnly={index === 0} // Unit dasar (index 0) selalu 1
-                            onChange={(e) => handleUnitChange(index, 'conversion', parseInt(e.target.value) || 1)}
-                            className={`w-full p-2 border rounded-lg ${errors[`unit_${index}_conversion`] ? 'border-red-500' : 'border-gray-300'} ${index === 0 ? 'bg-gray-200' : ''}`}
-                            required 
+                            value="1"
+                            readOnly
+                            className="w-full p-2 border border-blue-300 rounded-lg bg-gray-200 font-semibold"
                           />
-                          {errors[`unit_${index}_conversion`] && <p className="text-red-500 text-xs mt-1">{errors[`unit_${index}_conversion`]}</p>}
+                          <span className="text-sm font-semibold">{formData.units[0]?.name || 'Satuan'}</span>
                         </div>
-                        <span className="text-sm">{baseUnitName}</span>
-                        {index > 0 && (
-                          <button type="button" onClick={() => handleRemoveUnit(index)} className="text-red-500 hover:text-red-700 ml-auto">
-                            <TrashIcon className="w-4 h-4" />
-                          </button>
-                        )}
+                        <p className="text-xs text-gray-500 mt-1">Satuan kecil selalu = 1</p>
                       </div>
                     </div>
-                    {/* Baris 2: Harga */}
+                    
                     <div>
+                      <label className="text-xs text-gray-600 mb-1 block">Harga Jual per {formData.units[0]?.name || 'Satuan'}:</label>
                       <input 
                         type="number" 
                         placeholder="Harga Jual (Rp)" 
-                        value={unit.price}
-                        onChange={(e) => handleUnitChange(index, 'price', parseInt(e.target.value) || 0)}
-                        className={`w-full p-2 border rounded-lg ${errors[`unit_${index}_price`] ? 'border-red-500' : 'border-gray-300'}`}
+                        value={formData.units[0].price}
+                        onChange={(e) => handleUnitChange(0, 'price', parseInt(e.target.value) || 0)}
+                        className={`w-full p-2 border rounded-lg ${errors[`unit_0_price`] ? 'border-red-500' : 'border-blue-300'}`}
                         required 
                         min="1"
                       />
-                      {errors[`unit_${index}_price`] && <p className="text-red-500 text-xs mt-1">{errors[`unit_${index}_price`]}</p>}
+                      {errors[`unit_0_price`] && <p className="text-red-500 text-xs mt-1">{errors[`unit_0_price`]}</p>}
                     </div>
                     
-                    {/* Baris 3: Barcode */}
+                    {/* Barcode untuk satuan kecil */}
                     <div>
-                      <label className="text-sm font-medium text-gray-700">Barcodes Terdaftar:</label>
+                      <label className="text-xs font-medium text-gray-700 mb-1 block">Barcodes Terdaftar:</label>
                       <div className="flex flex-wrap gap-1 my-1 p-2 border rounded bg-white min-h-[38px]">
-                        {unit.barcodes.map(b => (
+                        {formData.units[0].barcodes.map(b => (
                           <span key={b} className="bg-gray-200 text-xs font-medium px-2 py-0.5 rounded flex items-center gap-1">
                             {b}
-                            <button type="button" onClick={() => handleRemoveBarcode(index, b)} className="text-red-500 hover:text-red-700">&times;</button>
+                            <button type="button" onClick={() => handleRemoveBarcode(0, b)} className="text-red-500 hover:text-red-700">&times;</button>
                           </span>
                         ))}
-                        {unit.barcodes.length === 0 && <span className="text-xs text-gray-500 italic">Belum ada barcode</span>}
+                        {formData.units[0].barcodes.length === 0 && <span className="text-xs text-gray-500 italic">Belum ada barcode</span>}
                       </div>
                       <div className="flex gap-2 mt-2">
                         <input type="text" placeholder="Scan/Input barcode baru..."
-                          value={newBarcodes[index] || ''}
-                          onChange={(e) => handleNewBarcodeChange(index, e.target.value)}
-                          onKeyPress={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleAddBarcode(index); }}}
-                          className="w-2/3 p-2 border ..."
+                          value={newBarcodes[0] || ''}
+                          onChange={(e) => handleNewBarcodeChange(0, e.target.value)}
+                          onKeyPress={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleAddBarcode(0); }}}
+                          className="w-2/3 p-2 border border-gray-300 rounded-lg"
                         />
-                        <button type="button" onClick={() => handleAddBarcode(index)} 
+                        <button type="button" onClick={() => handleAddBarcode(0)} 
                           className="w-1/3 bg-blue-500 text-white text-sm font-bold py-2 px-3 rounded hover:bg-blue-600">
                           + Tambah
                         </button>
                       </div>
                     </div>
                   </div>
-                ))}
+                )}
               </div>
-              <button type="button" onClick={handleAddUnit} className="mt-2 text-sm text-blue-600 hover:text-blue-800">
-                + Tambah Satuan (Karton, Dus, Pack, dll)
-              </button>
+
+              {/* SATUAN BESAR */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                  <label className="text-sm font-semibold text-green-700">SATUAN BESAR (Opsional)</label>
+                </div>
+                <p className="text-xs text-gray-600 mb-2 ml-4">
+                  Satuan yang lebih besar dari satuan kecil. Contoh: Karton (isi 12 pcs), Dus (isi 24 botol), Pack (isi 10 kg). 
+                  Konversi harus lebih besar dari 1.
+                </p>
+                <div className="space-y-2">
+                  {formData.units.slice(1).map((unit, index) => {
+                    const actualIndex = index + 1; // Index sebenarnya di array units
+                    return (
+                      <div key={actualIndex} className="p-3 border-2 border-green-200 rounded-lg bg-green-50 space-y-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold text-green-700">Satuan Besar #{actualIndex}</span>
+                          <button type="button" onClick={() => handleRemoveUnit(actualIndex)} className="text-red-500 hover:text-red-700">
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          <div className="w-1/2">
+                            <label className="text-xs text-gray-600 mb-1 block">Nama Satuan Besar:</label>
+                            <input 
+                              type="text" 
+                              placeholder="Contoh: Karton, Dus, Pack" 
+                              value={unit.name}
+                              onChange={(e) => handleUnitChange(actualIndex, 'name', e.target.value)}
+                              className={`w-full p-2 border rounded-lg ${errors[`unit_${actualIndex}_name`] ? 'border-red-500' : 'border-green-300'}`}
+                              required 
+                            />
+                            {errors[`unit_${actualIndex}_name`] && <p className="text-red-500 text-xs mt-1">{errors[`unit_${actualIndex}_name`]}</p>}
+                          </div>
+                          
+                          <div className="w-1/2">
+                            <label className="text-xs text-gray-600 mb-1 block">Isi (dalam {baseUnitName}):</label>
+                            <div className="flex items-center gap-1">
+                              <input 
+                                type="number" 
+                                placeholder="Isi" 
+                                value={unit.conversion}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value) || 1;
+                                  if (val > 1) {
+                                    handleUnitChange(actualIndex, 'conversion', val);
+                                  }
+                                }}
+                                className={`w-full p-2 border rounded-lg ${errors[`unit_${actualIndex}_conversion`] ? 'border-red-500' : 'border-green-300'}`}
+                                required 
+                                min="2"
+                              />
+                              <span className="text-sm font-semibold">{baseUnitName}</span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">Harus lebih besar dari 1</p>
+                            {errors[`unit_${actualIndex}_conversion`] && <p className="text-red-500 text-xs mt-1">{errors[`unit_${actualIndex}_conversion`]}</p>}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="text-xs text-gray-600 mb-1 block">Harga Jual per {unit.name || 'Satuan Besar'}:</label>
+                          <input 
+                            type="number" 
+                            placeholder="Harga Jual (Rp)" 
+                            value={unit.price}
+                            onChange={(e) => handleUnitChange(actualIndex, 'price', parseInt(e.target.value) || 0)}
+                            className={`w-full p-2 border rounded-lg ${errors[`unit_${actualIndex}_price`] ? 'border-red-500' : 'border-green-300'}`}
+                            required 
+                            min="1"
+                          />
+                          {errors[`unit_${actualIndex}_price`] && <p className="text-red-500 text-xs mt-1">{errors[`unit_${actualIndex}_price`]}</p>}
+                        </div>
+                        
+                        {/* Barcode untuk satuan besar */}
+                        <div>
+                          <label className="text-xs font-medium text-gray-700 mb-1 block">Barcodes Terdaftar:</label>
+                          <div className="flex flex-wrap gap-1 my-1 p-2 border rounded bg-white min-h-[38px]">
+                            {unit.barcodes.map(b => (
+                              <span key={b} className="bg-gray-200 text-xs font-medium px-2 py-0.5 rounded flex items-center gap-1">
+                                {b}
+                                <button type="button" onClick={() => handleRemoveBarcode(actualIndex, b)} className="text-red-500 hover:text-red-700">&times;</button>
+                              </span>
+                            ))}
+                            {unit.barcodes.length === 0 && <span className="text-xs text-gray-500 italic">Belum ada barcode</span>}
+                          </div>
+                          <div className="flex gap-2 mt-2">
+                            <input type="text" placeholder="Scan/Input barcode baru..."
+                              value={newBarcodes[actualIndex] || ''}
+                              onChange={(e) => handleNewBarcodeChange(actualIndex, e.target.value)}
+                              onKeyPress={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleAddBarcode(actualIndex); }}}
+                              className="w-2/3 p-2 border border-gray-300 rounded-lg"
+                            />
+                            <button type="button" onClick={() => handleAddBarcode(actualIndex)} 
+                              className="w-1/3 bg-green-500 text-white text-sm font-bold py-2 px-3 rounded hover:bg-green-600">
+                              + Tambah
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <button type="button" onClick={handleAddUnit} className="mt-2 text-sm text-green-600 hover:text-green-800 font-medium">
+                  + Tambah Satuan Besar (Karton, Dus, Pack, dll)
+                </button>
+              </div>
             </div>
           </div>
           

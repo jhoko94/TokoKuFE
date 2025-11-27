@@ -3,8 +3,35 @@ import { jsPDF } from "jspdf";
 // Import autotable - untuk versi 5.x perlu import default
 import autoTable from "jspdf-autotable";
 
-export async function generatePOPDF(po) {
+// Helper function untuk fetch store data
+async function fetchStoreData() {
     try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/store`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        if (response.ok) {
+            return await response.json();
+        }
+        return null;
+    } catch (error) {
+        console.error("Gagal memuat data toko:", error);
+        return null;
+    }
+}
+
+export async function generatePOPDF(po, storeData = null) {
+    try {
+        // Fetch store data jika tidak diberikan
+        let store = storeData;
+        if (!store) {
+            store = await fetchStoreData();
+        }
+        
         const doc = new jsPDF();
         
         // Header
@@ -12,43 +39,73 @@ export async function generatePOPDF(po) {
         doc.setFontSize(20);
         doc.text("PURCHASE ORDER", 105, 20, { align: 'center' });
         
-        // PO Number
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`No. PO: ${po.id}`, 20, 35);
+        // Store Info (Dari) - Kiri
+        let yPos = 30;
+        if (store) {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(11);
+            doc.text("Dari:", 20, yPos);
+            
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(10);
+            yPos += 6;
+            doc.text(store.name || 'N/A', 20, yPos);
+            
+            if (store.address) {
+                yPos += 5;
+                doc.text(store.address, 20, yPos);
+            }
+            
+            if (store.phone) {
+                yPos += 5;
+                doc.text(`Telp: ${store.phone}`, 20, yPos);
+            }
+            
+            if (store.email) {
+                yPos += 5;
+                doc.text(`Email: ${store.email}`, 20, yPos);
+            }
+        }
         
-        // Tanggal
+        // PO Number dan Tanggal (di kanan)
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        const rightX = 150;
+        let rightY = 30;
+        doc.text(`No. PO: ${po.id}`, rightX, rightY);
+        rightY += 6;
+        
         const date = po.createdAt ? new Date(po.createdAt).toLocaleDateString('id-ID', {
             day: '2-digit',
             month: '2-digit',
             year: 'numeric'
         }) : new Date().toLocaleDateString('id-ID');
-        doc.text(`Tanggal: ${date}`, 20, 42);
+        doc.text(`Tanggal: ${date}`, rightX, rightY);
         
-        // Distributor Info
-        let yPos = 55;
+        // Distributor Info (Kepada) - Setelah store info
+        yPos = Math.max(yPos + 12, 60); // Pastikan ada spacing yang cukup
         if (po.distributor) {
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(12);
+            doc.setFontSize(11);
             doc.text("Kepada:", 20, yPos);
             
             doc.setFont('helvetica', 'normal');
-            doc.setFontSize(11);
-            yPos += 7;
+            doc.setFontSize(10);
+            yPos += 6;
             doc.text(po.distributor.name || 'N/A', 20, yPos);
             
             if (po.distributor.address) {
-                yPos += 6;
+                yPos += 5;
                 doc.text(po.distributor.address, 20, yPos);
             }
             
             if (po.distributor.phone) {
-                yPos += 6;
+                yPos += 5;
                 doc.text(`Telp: ${po.distributor.phone}`, 20, yPos);
             }
             
             if (po.distributor.contactPerson) {
-                yPos += 6;
+                yPos += 5;
                 doc.text(`Contact Person: ${po.distributor.contactPerson}`, 20, yPos);
             }
         }
