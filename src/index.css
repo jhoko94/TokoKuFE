@@ -3,6 +3,307 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Modern Styling dengan tema Purple/Pink/Blue */
+:root {
+  --primary-color: #9333ea;
+  --primary-dark: #7e22ce;
+  --primary-light: #a855f7;
+  --secondary-color: #ec4899;
+  --accent-color: #3b82f6;
+  --danger-color: #ef4444;
+  --warning-color: #f59e0b;
+  --success-color: #10b981;
+  --info-color: #3b82f6;
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+}
+
+/* Global Styles */
+body {
+  @apply bg-gray-50 text-gray-900;
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+}
+
+/* Apply Roboto to all elements */
+* {
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+}
+
+/* Card/Box Styling */
+.card {
+  @apply bg-white rounded-lg shadow-sm border border-gray-200 p-4;
+}
+
+.card-header {
+  @apply border-b border-gray-200 pb-3 mb-4;
+}
+
+.card-title {
+  @apply text-lg font-semibold text-gray-800;
+}
+
+/* Button Styles */
+.btn {
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+}
+
+.btn-primary {
+  @apply bg-purple-600 text-white hover:bg-purple-700 focus:ring-purple-500;
+}
+
+.btn-secondary {
+  @apply bg-gray-200 text-gray-700 hover:bg-gray-300 focus:ring-gray-500;
+}
+
+.btn-success {
+  @apply bg-green-600 text-white hover:bg-green-700 focus:ring-green-500;
+}
+
+.btn-danger {
+  @apply bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+}
+
+.btn-warning {
+  @apply bg-yellow-500 text-white hover:bg-yellow-600 focus:ring-yellow-500;
+}
+
+.btn-sm {
+  @apply px-3 py-1.5 text-sm;
+}
+
+.btn-lg {
+  @apply px-6 py-3 text-lg;
+}
+
+/* Input Styles */
+.input {
+  @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all;
+}
+
+.input-error {
+  @apply border-red-300 focus:ring-red-500;
+}
+
+/* Table Styles */
+.table {
+  @apply min-w-full divide-y divide-gray-200;
+}
+
+.table thead {
+  @apply bg-gray-50;
+}
+
+.table th {
+  @apply px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
+}
+
+.table td {
+  @apply px-6 py-4 whitespace-nowrap text-sm text-gray-700;
+}
+
+.table tbody tr {
+  @apply hover:bg-gray-50 transition-colors;
+}
+
+/* Badge Styles */
+.badge {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+.badge-primary {
+  @apply bg-blue-100 text-blue-800;
+}
+
+.badge-success {
+  @apply bg-green-100 text-green-800;
+}
+
+.badge-danger {
+  @apply bg-red-100 text-red-800;
+}
+
+.badge-warning {
+  @apply bg-yellow-100 text-yellow-800;
+}
+
+.badge-gray {
+  @apply bg-gray-100 text-gray-800;
+}
+
+/* Page Content */
+.page-content {
+  @apply min-h-screen bg-gray-50;
+}
+
+/* Sidebar Navigation */
+.nav-button {
+  @apply flex items-center gap-3 px-4 py-3 text-gray-700 rounded-lg transition-all duration-200;
+}
+
+.nav-button:hover:not(.active) {
+  @apply bg-purple-50 text-purple-700;
+}
+
+.nav-button.active {
+  @apply bg-purple-600 text-white;
+}
+
+.nav-button.active:hover {
+  @apply bg-purple-700 text-white;
+}
+
+/* Modal Styles */
+.modal-content {
+  @apply fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl z-50 p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto;
+}
+
+/* Loading Spinner */
+.loader {
+  @apply inline-block w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin;
+}
+
+/* Toast Notification */
+.toast {
+  @apply fixed top-4 right-4 z-50 max-w-sm w-full bg-white rounded-lg shadow-lg border border-gray-200 p-4 animate-slide-in;
+}
+
+.toast-success {
+  @apply border-green-200 bg-green-50;
+}
+
+.toast-error {
+  @apply border-red-200 bg-red-50;
+}
+
+.toast-warning {
+  @apply border-yellow-200 bg-yellow-50;
+}
+
+.toast-info {
+  @apply border-blue-200 bg-blue-50;
+}
+
+/* Animation */
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400;
+}
+
+/* Responsive Styles */
+@media (max-width: 640px) {
+  /* Mobile-specific styles */
+  .page-content {
+    @apply p-2;
+  }
+  
+  /* Make tables scrollable on mobile */
+  .table-responsive {
+    @apply overflow-x-auto -mx-2;
+  }
+  
+  .table-responsive table {
+    @apply min-w-full;
+  }
+  
+  /* Ensure all tables can scroll horizontally on mobile */
+  .page-content table {
+    @apply min-w-full;
+  }
+  
+  .page-content .overflow-x-auto {
+    @apply -mx-2;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    scrollbar-width: thin; /* Firefox */
+  }
+  
+  .page-content .overflow-x-auto::-webkit-scrollbar {
+    height: 8px; /* Show scrollbar on mobile */
+  }
+  
+  .page-content .overflow-x-auto::-webkit-scrollbar-track {
+    @apply bg-gray-100 rounded;
+  }
+  
+  .page-content .overflow-x-auto::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded;
+  }
+  
+  .page-content .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400;
+  }
+  
+  /* Modal adjustments for mobile */
+  .modal-content {
+    @apply w-[95vw] max-w-none mx-2 p-4 max-h-[95vh];
+  }
+  
+  /* Button adjustments */
+  .btn {
+    @apply text-sm px-3 py-2;
+  }
+  
+  /* Input adjustments */
+  .input {
+    @apply text-base; /* Prevent zoom on iOS */
+  }
+  
+  /* Card padding adjustments */
+  .card {
+    @apply p-3;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  body {
+    @apply bg-white;
+  }
+  
+  .page-content {
+    @apply p-0;
+  }
+}
+
 /* ==========================================
   MIGRASI DARI style.css LAMA ANDA
   ==========================================
@@ -32,29 +333,7 @@
     100% { transform: rotate(360deg); }
 }
 
-/* Komponen Tombol Navigasi */
-.nav-button {
-    display: flex;
-    align-items: center;
-    padding: 0.75rem 1.5rem;
-    margin: 0.25rem 0.5rem;
-    border-radius: 0.5rem;
-    color: #4B5563; /* text-gray-600 */
-    font-weight: 500; /* medium */
-    transition: all 0.2s ease-in-out;
-}
-.nav-button:hover {
-    background-color: #F3F4F6; /* bg-gray-100 */
-    color: #1D4ED8; /* text-blue-700 */
-}
-.nav-button.active {
-    background-color: #DBEAFE; /* bg-blue-100 */
-    color: #1D4ED8; /* text-blue-700 */
-    font-weight: 600; /* semibold */
-}
-.nav-button span {
-    margin-left: 0.75rem;
-}
+/* Komponen Tombol Navigasi - Duplikat dihapus, menggunakan yang di atas */
 
 /* Komponen Konten Modal */
 .modal-content {
@@ -69,4 +348,32 @@
     z-index: 50;
     width: 90%;
     max-width: 400px;
+}
+
+/* Progress bar animation */
+@keyframes progress-indeterminate {
+    0%   { transform: translateX(-100%); }
+    50%  { transform: translateX(0); }
+    100% { transform: translateX(100%); }
+}
+
+.animate-progress {
+    width: 50%;
+    animation: progress-indeterminate 1.2s ease-in-out infinite;
+}
+
+/* Animasi Toast */
+@keyframes slide-in {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.animate-slide-in {
+    animation: slide-in 0.3s ease-out;
 }

@@ -1,12 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { useNavigate } from 'react-router-dom'; // Untuk pindah halaman
 import { generatePOPDF } from '../utils/generatePOPDF'; // Impor utilitas PDF kita
 import { formatStockDisplay } from '../utils/formatters';
 import ModalKonfirmasi from '../components/modals/ModalKonfirmasi'; // Kita akan pakai ulang modal ini
+import Pagination from '../components/Pagination';
 
 function PagePesanan() {
-  const { distributors, products, createPO } = useStore();
+  const { distributors, createPO, fetchPOSuggestions } = useStore();
   const navigate = useNavigate(); // Hook untuk navigasi
   
   // State lokal
@@ -18,27 +19,51 @@ function PagePesanan() {
   const [modalData, setModalData] = useState(null); // State untuk ModalKonfirmasi
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 1. Logika Filtering (Derived State)
-  const suggestedProducts = useMemo(() => {
-    if (!selectedDistributorId) return [];
-    
-    // Filter produk dari distributor yg dipilih & stok menipis
-    return products.filter(p => 
-      p.distributorId === selectedDistributorId && p.stock <= p.minStock
-    );
-  }, [products, selectedDistributorId]);
+  // State untuk pagination
+  const [suggestedProducts, setSuggestedProducts] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch suggestions saat distributor atau page berubah
+  useEffect(() => {
+    if (!selectedDistributorId) {
+      setSuggestedProducts([]);
+      setPagination({ page: 1, limit: 25, total: 0, totalPages: 0 });
+      return;
+    }
+
+    const loadSuggestions = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetchPOSuggestions(selectedDistributorId, currentPage, itemsPerPage);
+        setSuggestedProducts(response.data || []);
+        setPagination(response.pagination || { page: 1, limit: 25, total: 0, totalPages: 0 });
+      } catch (error) {
+        console.error("Gagal memuat saran PO:", error);
+        setSuggestedProducts([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadSuggestions();
+  }, [selectedDistributorId, currentPage, itemsPerPage, fetchPOSuggestions]);
 
   // 2. Event Handlers
   const handleDistributorChange = (e) => {
     const distId = e.target.value;
     setSelectedDistributorId(distId);
     setPoItems({}); // Reset input barang setiap ganti distributor
+    setCurrentPage(1); // Reset ke page 1 saat ganti distributor
   };
   
   // Handler untuk mengubah Qty atau Unit barang
   const handleItemChange = (productId, field, value) => {
-    // Ambil unit default jika belum ada
-    const defaultUnit = products.find(p => p.id === productId)?.units[0]?.name || 'Pcs';
+    // Ambil unit default dari suggestedProducts
+    const product = suggestedProducts.find(p => p.id === productId);
+    const defaultUnit = product?.units?.[0]?.name || 'Pcs';
     
     setPoItems(prev => ({
       ...prev,
@@ -53,20 +78,45 @@ function PagePesanan() {
   
   // 3. Logika Submit (inti)
   const handleFinalizePO = () => {
+    // Validasi distributor
+    if (!selectedDistributorId) {
+      setModalData({
+        title: "Error",
+        message: "Distributor harus dipilih terlebih dahulu.",
+        onConfirm: () => setModalData(null),
+        onCancel: null
+      });
+      return;
+    }
+
     const distributor = distributors.find(d => d.id === selectedDistributorId);
-    if (!distributor) return;
+    if (!distributor) {
+      setModalData({
+        title: "Error",
+        message: "Distributor tidak ditemukan. Silakan pilih distributor lagi.",
+        onConfirm: () => setModalData(null),
+        onCancel: null
+      });
+      return;
+    }
 
     // Filter dari state 'poItems'
+    // Kita perlu mengambil data produk dari semua halaman yang sudah di-load
+    // Untuk sekarang, kita akan menggunakan data dari suggestedProducts yang sudah di-fetch
     const finalOrderList = Object.entries(poItems)
       .map(([productId, data]) => {
         const qty = Number(data.qty);
         if (qty > 0) {
-          return {
-            productId: productId,
-            product: products.find(p => p.id === productId), // Sertakan data produk lengkap
-            qty: qty,
-            unitName: data.unit
-          };
+          // Cari produk dari suggestedProducts atau dari semua halaman yang sudah di-load
+          const product = suggestedProducts.find(p => p.id === productId);
+          if (product) {
+            return {
+              productId: productId,
+              product: product, // Sertakan data produk lengkap
+              qty: qty,
+              unitName: data.unit
+            };
+          }
         }
         return null;
       })
@@ -111,31 +161,79 @@ function PagePesanan() {
   const proceedToSave = async (newPO) => {
     if (isSubmitting) return; // Mencegah double-click
     
+    // Validasi ulang distributor
+    if (!selectedDistributorId || !newPO.distributor) {
+      setModalData({
+        title: "Error",
+        message: "Distributor harus dipilih terlebih dahulu.",
+        onConfirm: () => setModalData(null),
+        onCancel: null
+      });
+      return;
+    }
+    
     setIsSubmitting(true);
     setModalData(null); // Tutup modal konfirmasi
     
     try {
-      // 1. Buat PDF
-      await generatePOPDF(newPO);
+      // Format data untuk backend: { distributorId, items: [{ productId, qty, unitName }] }
+      const poDataForBackend = {
+        distributorId: selectedDistributorId,
+        items: newPO.items.map(item => ({
+          productId: item.productId,
+          qty: item.qty,
+          unitName: item.unitName
+        }))
+      };
       
-      // 2. Simpan ke state global
-      await createPO(newPO);
+      // 1. Simpan ke backend dulu (untuk mendapatkan PO ID yang valid)
+      const savedPO = await createPO(poDataForBackend);
+      
+      // Validasi savedPO dengan pesan error yang jelas
+      if (!savedPO) {
+        throw new Error('Gagal membuat PO: Tidak ada response dari server');
+      }
+      
+      if (!savedPO.id) {
+        console.error('Response PO tidak valid:', savedPO);
+        throw new Error('Gagal membuat PO: ID tidak ditemukan di response');
+      }
+      
+      // 2. Buat PDF dengan data yang sudah disimpan (menggunakan savedPO dari backend)
+      // Format PO Number dari ID (ambil 8 karakter terakhir untuk display)
+      const poNumber = savedPO.id ? `PO-${savedPO.id.slice(-8).toUpperCase()}` : `PO-${Date.now()}`;
+      
+      const poForPDF = {
+        id: poNumber, // Gunakan format PO-XXXX untuk PDF
+        poId: savedPO.id, // Simpan ID asli juga
+        distributor: newPO.distributor,
+        createdAt: savedPO.createdAt || new Date().toISOString(),
+        status: savedPO.status || 'PENDING',
+        items: newPO.items // Tetap gunakan items dengan product data untuk PDF
+      };
+      
+      // Generate PDF
+      await generatePOPDF(poForPDF);
       
       // 3. Reset halaman
       setSelectedDistributorId('');
       setPoItems({});
       
-      // 4. Pindah halaman (opsional, atau tampilkan notif sukses)
-      navigate('/'); // Kembali ke halaman Jualan
+      // 4. Tampilkan notifikasi sukses dan pindah halaman
+      // Notifikasi sudah ditampilkan oleh createPO di StoreContext
+      setTimeout(() => {
+        navigate('/cek-pesanan'); // Pindah ke halaman Cek Pesanan
+      }, 1000);
       
       // Kita bisa tampilkan modal sukses di sini jika mau
       
     } catch (error) {
       console.error("Gagal buat PO atau PDF:", error);
-      // Tampilkan modal error
+      // Tampilkan modal error dengan pesan yang lebih spesifik
+      const errorMessage = error.message || "Gagal menyimpan PO atau membuat PDF. Silakan coba lagi.";
       setModalData({
         title: "Error",
-        message: "Gagal menyimpan PO atau membuat PDF. Silakan coba lagi.",
+        message: errorMessage,
         onConfirm: () => setModalData(null),
         onCancel: null
       });
@@ -147,8 +245,8 @@ function PagePesanan() {
   // 4. Render JSX
   return (
     <>
-      <div className="page-content p-4 md:p-8">
-        <h2 className="text-2xl font-bold mb-4">Buat Pesanan Barang (PO)</h2>
+      <div className="page-content p-2 sm:p-4 md:p-8 pb-32 sm:pb-8">
+        <h2 className="text-xl sm:text-2xl font-bold mb-4">Buat Pesanan Barang (PO)</h2>
 
         <div className="bg-white p-4 rounded-lg shadow mb-4">
           <label htmlFor="distributor-select" className="block text-sm font-medium text-gray-700">
@@ -175,7 +273,12 @@ function PagePesanan() {
             </p>
             
             <div className="space-y-3 mb-4">
-              {suggestedProducts.length === 0 ? (
+              {isLoading ? (
+                <div className="text-center py-8">
+                  <div className="loader mx-auto mb-2"></div>
+                  <p className="text-gray-500">Memuat data...</p>
+                </div>
+              ) : suggestedProducts.length === 0 ? (
                 <p className="text-center text-gray-500 py-4">Stok barang dari distributor ini aman.</p>
               ) : (
                 suggestedProducts.map(product => {
@@ -218,15 +321,32 @@ function PagePesanan() {
               )}
             </div>
 
+            {/* Pagination */}
+            {!isLoading && pagination.total > 0 && (
+              <Pagination
+                currentPage={pagination.page}
+                totalPages={pagination.totalPages}
+                onPageChange={setCurrentPage}
+                itemsPerPage={pagination.limit}
+                totalItems={pagination.total}
+                onItemsPerPageChange={(newItemsPerPage) => {
+                  setItemsPerPage(newItemsPerPage);
+                  setCurrentPage(1);
+                }}
+              />
+            )}
+
             {suggestedProducts.length > 0 && (
-              <button 
-                id="btn-finalize-po"
-                onClick={handleFinalizePO}
-                disabled={isSubmitting}
-                className="w-full bg-green-600 text-white font-bold py-3 rounded-lg shadow hover:bg-green-700 disabled:opacity-50"
-              >
-                {isSubmitting ? 'Memproses...' : 'Buat PO'}
-              </button>
+              <div className="mb-12 sm:mb-4">
+                <button 
+                  id="btn-finalize-po"
+                  onClick={handleFinalizePO}
+                  disabled={isSubmitting || !selectedDistributorId}
+                  className="w-full bg-green-600 text-white font-bold py-3 rounded-lg shadow hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed mt-4 text-sm sm:text-base min-h-[48px]"
+                >
+                  {isSubmitting ? 'Memproses...' : 'Buat PO'}
+                </button>
+              </div>
             )}
           </div>
         )}

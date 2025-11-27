@@ -21,7 +21,7 @@ export default function ModalBayarUtang({ customer, onClose }) {
   }, [customer]); // Dependency: jalankan jika 'customer' berubah
 
   // Fungsi yang dijalankan saat form disubmit
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault(); // Mencegah reload halaman
     setError(''); // Reset error
 
@@ -39,8 +39,8 @@ export default function ModalBayarUtang({ customer, onClose }) {
 
     // Panggil fungsi dari context untuk update global state
     try {
-      payDebt(customer.id, payAmount);
-      onClose(); // Tutup modal jika sukses
+      await payDebt(customer.id, payAmount);
+      onClose(); // Tutup modal jika sukses (onClose akan trigger reload di PageUtang)
     } catch (err) {
       setError('Gagal menyimpan pembayaran.');
     }

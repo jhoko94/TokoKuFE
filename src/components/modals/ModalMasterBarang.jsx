@@ -22,7 +22,10 @@ export default function ModalMasterBarang({ productToEdit, onClose }) {
   
   // 'newBarcodes' adalah state terpisah untuk mengelola input "barcode baru"
   // Ini penting agar input barcode untuk unit 1 tidak bentrok dgn unit 2
-  const [newBarcodes, setNewBarcodes] = useState([]); 
+  const [newBarcodes, setNewBarcodes] = useState([]);
+  
+  // State untuk error validation
+  const [errors, setErrors] = useState({}); 
 
   // 1. Logika Inisialisasi Form
   useEffect(() => {
@@ -124,17 +127,64 @@ export default function ModalMasterBarang({ productToEdit, onClose }) {
   };
   
   // 4. Handler Submit Form
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // ... (Validasi Anda: cek SKU duplikat, nama, dll) ...
-    // if (!formData.sku || !formData.name || !formData.distributorId) {
-    //   alert("Kode, Nama, dan Distributor wajib diisi.");
-    //   return;
-    // }
+    setErrors({});
     
-    // Panggil fungsi dari Context untuk menyimpan
-    saveProduct(formData);
-    onClose(); // Tutup modal
+    // Validasi
+    const newErrors = {};
+    
+    // Validasi SKU
+    if (!formData.sku || !formData.sku.trim()) {
+      newErrors.sku = 'Kode barang (SKU) harus diisi';
+    }
+    
+    // Validasi Nama
+    if (!formData.name || !formData.name.trim()) {
+      newErrors.name = 'Nama barang harus diisi';
+    }
+    
+    // Validasi Distributor
+    if (!formData.distributorId) {
+      newErrors.distributorId = 'Distributor harus dipilih';
+    }
+    
+    // Validasi Min Stock
+    if (formData.minStock === undefined || formData.minStock < 0) {
+      newErrors.minStock = 'Stok minimum harus >= 0';
+    }
+    
+    // Validasi Units
+    if (!formData.units || formData.units.length === 0) {
+      newErrors.units = 'Minimal harus ada 1 satuan';
+    } else {
+      formData.units.forEach((unit, index) => {
+        if (!unit.name || !unit.name.trim()) {
+          newErrors[`unit_${index}_name`] = 'Nama satuan harus diisi';
+        }
+        if (!unit.price || unit.price <= 0) {
+          newErrors[`unit_${index}_price`] = 'Harga satuan harus > 0';
+        }
+        if (!unit.conversion || unit.conversion <= 0) {
+          newErrors[`unit_${index}_conversion`] = 'Konversi satuan harus > 0';
+        }
+      });
+    }
+    
+    // Jika ada error, tampilkan dan stop
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+    
+    try {
+      // Panggil fungsi dari Context untuk menyimpan
+      await saveProduct(formData);
+      onClose(); // Tutup modal
+    } catch (error) {
+      // Error sudah ditangani di context dengan toast
+      console.error('Gagal menyimpan produk:', error);
+    }
   };
 
   // 5. Render JSX
@@ -149,49 +199,93 @@ export default function ModalMasterBarang({ productToEdit, onClose }) {
           <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
             <div>
                 <label className="block text-sm font-medium text-gray-700">Kode Barang (SKU):</label>
-                <input type="text" name="sku" value={formData.sku} onChange={handleFormChange}
-                  className="w-full p-2 mt-1 border border-gray-300 rounded-lg" required />
+                <input 
+                  type="text" 
+                  name="sku" 
+                  value={formData.sku} 
+                  onChange={handleFormChange}
+                  className={`w-full p-2 mt-1 border rounded-lg ${errors.sku ? 'border-red-500' : 'border-gray-300'}`}
+                  required 
+                />
+                {errors.sku && <p className="text-red-500 text-xs mt-1">{errors.sku}</p>}
             </div>
             <div>
                 <label className="block text-sm font-medium text-gray-700">Nama Barang:</label>
-                <input type="text" name="name" value={formData.name} onChange={handleFormChange}
-                  className="w-full p-2 mt-1 border border-gray-300 rounded-lg" required />
+                <input 
+                  type="text" 
+                  name="name" 
+                  value={formData.name} 
+                  onChange={handleFormChange}
+                  className={`w-full p-2 mt-1 border rounded-lg ${errors.name ? 'border-red-500' : 'border-gray-300'}`}
+                  required 
+                />
+                {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
             </div>
             <div>
                 <label className="block text-sm font-medium text-gray-700">Distributor:</label>
-                <select name="distributorId" value={formData.distributorId} onChange={handleFormChange}
-                  className="w-full p-2 mt-1 border border-gray-300 rounded-lg bg-white" required>
+                <select 
+                  name="distributorId" 
+                  value={formData.distributorId} 
+                  onChange={handleFormChange}
+                  className={`w-full p-2 mt-1 border rounded-lg bg-white ${errors.distributorId ? 'border-red-500' : 'border-gray-300'}`}
+                  required
+                >
                   <option value="">-- Pilih Distributor --</option>
                   {distributors.map(d => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
+                {errors.distributorId && <p className="text-red-500 text-xs mt-1">{errors.distributorId}</p>}
             </div>
             <div>
                 <label className="block text-sm font-medium text-gray-700">Stok Minimum ({baseUnitName}):</label>
-                <input type="number" name="minStock" value={formData.minStock} onChange={handleFormChange}
-                  className="w-full p-2 mt-1 border border-gray-300 rounded-lg" />
+                <input 
+                  type="number" 
+                  name="minStock" 
+                  value={formData.minStock} 
+                  onChange={handleFormChange}
+                  className={`w-full p-2 mt-1 border rounded-lg ${errors.minStock ? 'border-red-500' : 'border-gray-300'}`}
+                  min="0"
+                />
+                {errors.minStock && <p className="text-red-500 text-xs mt-1">{errors.minStock}</p>}
             </div>
 
             {/* --- Bagian Unit (Logika Dinamis) --- */}
             <div>
               <label className="block text-sm font-medium text-gray-700">Satuan, Harga Jual, & Barcode:</label>
+              {errors.units && <p className="text-red-500 text-xs mt-1">{errors.units}</p>}
               <div className="space-y-2 mt-2">
                 
                 {formData.units.map((unit, index) => (
                   <div key={index} className="p-3 border rounded-lg bg-gray-50 space-y-2">
                     {/* Baris 1: Nama & Konversi */}
                     <div className="flex gap-2">
-                      <input type="text" placeholder="Nama Satuan" value={unit.name}
-                        onChange={(e) => handleUnitChange(index, 'name', e.target.value)}
-                        className={`w-1/2 p-2 border ... ${index === 0 ? 'font-bold' : ''}`} required />
+                      <div className="w-1/2">
+                        <input 
+                          type="text" 
+                          placeholder="Nama Satuan" 
+                          value={unit.name}
+                          onChange={(e) => handleUnitChange(index, 'name', e.target.value)}
+                          className={`w-full p-2 border rounded-lg ${errors[`unit_${index}_name`] ? 'border-red-500' : 'border-gray-300'} ${index === 0 ? 'font-bold' : ''}`}
+                          required 
+                        />
+                        {errors[`unit_${index}_name`] && <p className="text-red-500 text-xs mt-1">{errors[`unit_${index}_name`]}</p>}
+                      </div>
                       
                       <div className="w-1/2 flex items-center gap-1">
                         <label className="text-sm">Isi:</label>
-                        <input type="number" placeholder="Isi" value={unit.conversion}
-                          readOnly={index === 0} // Unit dasar (index 0) selalu 1
-                          onChange={(e) => handleUnitChange(index, 'conversion', parseInt(e.target.value) || 1)}
-                          className={`w-1/3 p-2 border ... ${index === 0 ? 'bg-gray-200' : ''}`} required />
+                        <div className="flex-1">
+                          <input 
+                            type="number" 
+                            placeholder="Isi" 
+                            value={unit.conversion}
+                            readOnly={index === 0} // Unit dasar (index 0) selalu 1
+                            onChange={(e) => handleUnitChange(index, 'conversion', parseInt(e.target.value) || 1)}
+                            className={`w-full p-2 border rounded-lg ${errors[`unit_${index}_conversion`] ? 'border-red-500' : 'border-gray-300'} ${index === 0 ? 'bg-gray-200' : ''}`}
+                            required 
+                          />
+                          {errors[`unit_${index}_conversion`] && <p className="text-red-500 text-xs mt-1">{errors[`unit_${index}_conversion`]}</p>}
+                        </div>
                         <span className="text-sm">{baseUnitName}</span>
                         {index > 0 && (
                           <button type="button" onClick={() => handleRemoveUnit(index)} className="text-red-500 hover:text-red-700 ml-auto">
@@ -201,9 +295,18 @@ export default function ModalMasterBarang({ productToEdit, onClose }) {
                       </div>
                     </div>
                     {/* Baris 2: Harga */}
-                    <input type="number" placeholder="Harga Jual (Rp)" value={unit.price}
-                      onChange={(e) => handleUnitChange(index, 'price', parseInt(e.target.value) || 0)}
-                      className="w-full p-2 border ..." required />
+                    <div>
+                      <input 
+                        type="number" 
+                        placeholder="Harga Jual (Rp)" 
+                        value={unit.price}
+                        onChange={(e) => handleUnitChange(index, 'price', parseInt(e.target.value) || 0)}
+                        className={`w-full p-2 border rounded-lg ${errors[`unit_${index}_price`] ? 'border-red-500' : 'border-gray-300'}`}
+                        required 
+                        min="1"
+                      />
+                      {errors[`unit_${index}_price`] && <p className="text-red-500 text-xs mt-1">{errors[`unit_${index}_price`]}</p>}
+                    </div>
                     
                     {/* Baris 3: Barcode */}
                     <div>
