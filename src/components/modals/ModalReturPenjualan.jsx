@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useStore } from '../../context/StoreContext';
 import { formatRupiah } from '../../utils/formatters';
+import { getUserRole } from '../../utils/normalize';
 import { XMarkIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 function ModalReturPenjualan({ isOpen, onClose, onSuccess }) {
   const { customers, getAllTransactions, createReturPenjualan, getReturPenjualanByInvoice, user } = useStore();
-  const isKasir = user?.role === 'KASIR';
+  const userRole = getUserRole(user);
+  const isKasir = userRole === 'KASIR';
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [transactions, setTransactions] = useState([]);

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { StoreProvider } from "./context/StoreContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleProtectedRoute from "./components/RoleProtectedRoute";
+import MenuProtectedRoute from "./components/MenuProtectedRoute";
 import Layout from "./components/Layout";
 import ScrollToTop from "./components/ScrollToTop";
 import PageLogin from "./pages/PageLogin";
@@ -9,6 +10,7 @@ import PageJualan from "./pages/PageJualan";
 import PageUtang from "./pages/PageUtang";
 import PageBarang from "./pages/PageBarang";
 import PageMasterBarang from "./pages/PageMasterBarang";
+import PageMasterBarangList from "./pages/PageMasterBarangList";
 import PageLaporan from "./pages/PageLaporan";
 import PagePesanan from "./pages/PagePesanan";
 import PageCekPesanan from "./pages/PageCekPesanan";
@@ -23,6 +25,8 @@ import PageKartuStok from "./pages/PageKartuStok";
 import PageHistoryPenjualan from "./pages/PageHistoryPenjualan";
 import PageHelp from "./pages/PageHelp";
 import PageProfile from "./pages/PageProfile";
+import PageUserManagement from "./pages/PageUserManagement";
+import PageRoleMenuManagement from "./pages/PageRoleMenuManagement";
 
 function App() {
   return (
@@ -39,103 +43,183 @@ function App() {
               <Layout />
             </ProtectedRoute>
           }>
-            {/* Master Data - Hanya ADMIN dan MANAGER */}
+            {/* Master Data - Menggunakan permission dari database */}
             <Route 
               path="master-barang" 
               element={
-                <RoleProtectedRoute allowedRoles={['ADMIN', 'MANAGER']}>
+                <MenuProtectedRoute menuPath="/master-barang">
                   <PageMasterBarang />
-                </RoleProtectedRoute>
+                </MenuProtectedRoute>
+              } 
+            />
+            <Route 
+              path="barang-master" 
+              element={
+                <MenuProtectedRoute menuPath="/barang-master">
+                  <PageMasterBarangList />
+                </MenuProtectedRoute>
               } 
             />
             <Route 
               path="master-pelanggan" 
               element={
-                <RoleProtectedRoute allowedRoles={['ADMIN', 'MANAGER']}>
+                <MenuProtectedRoute menuPath="/master-pelanggan">
                   <PageMasterPelanggan />
-                </RoleProtectedRoute>
+                </MenuProtectedRoute>
               } 
             />
             <Route 
               path="master-supplier" 
               element={
-                <RoleProtectedRoute allowedRoles={['ADMIN', 'MANAGER']}>
+                <MenuProtectedRoute menuPath="/master-supplier">
                   <PageMasterSupplier />
-                </RoleProtectedRoute>
+                </MenuProtectedRoute>
               } 
             />
             
-            {/* Transaksi - Semua role bisa akses */}
-            <Route index element={<PageJualan />} />
-            <Route path="history-penjualan" element={<PageHistoryPenjualan />} />
-            <Route path="retur-penjualan" element={<PageReturPenjualan />} />
+            {/* Transaksi - Menggunakan permission dari database */}
+            <Route 
+              index 
+              element={
+                <MenuProtectedRoute>
+                  <PageJualan />
+                </MenuProtectedRoute>
+              } 
+            />
+            <Route 
+              path="history-penjualan" 
+              element={
+                <MenuProtectedRoute menuPath="/history-penjualan">
+                  <PageHistoryPenjualan />
+                </MenuProtectedRoute>
+              } 
+            />
+            <Route 
+              path="retur-penjualan" 
+              element={
+                <MenuProtectedRoute menuPath="/retur-penjualan">
+                  <PageReturPenjualan />
+                </MenuProtectedRoute>
+              } 
+            />
             
-            {/* Pembelian - Hanya ADMIN dan MANAGER */}
+            {/* Pembelian - Menggunakan permission dari database */}
             <Route 
               path="pesan-barang" 
               element={
-                <RoleProtectedRoute allowedRoles={['ADMIN', 'MANAGER']}>
+                <MenuProtectedRoute menuPath="/pesan-barang">
                   <PagePesanan />
-                </RoleProtectedRoute>
+                </MenuProtectedRoute>
               } 
             />
             <Route 
               path="cek-pesanan" 
               element={
-                <RoleProtectedRoute allowedRoles={['ADMIN', 'MANAGER']}>
+                <MenuProtectedRoute menuPath="/cek-pesanan">
                   <PageCekPesanan />
-                </RoleProtectedRoute>
+                </MenuProtectedRoute>
               } 
             />
             <Route 
               path="retur-pembelian" 
               element={
-                <RoleProtectedRoute allowedRoles={['ADMIN', 'MANAGER']}>
+                <MenuProtectedRoute menuPath="/retur-pembelian">
                   <PageReturPembelian />
-                </RoleProtectedRoute>
+                </MenuProtectedRoute>
               } 
             />
             
-            {/* Stok */}
-            <Route path="barang" element={<PageBarang />} />
-            {/* Stok Opname - Hanya ADMIN dan MANAGER */}
+            {/* Stok - Menggunakan permission dari database */}
+            <Route 
+              path="barang" 
+              element={
+                <MenuProtectedRoute menuPath="/barang">
+                  <PageBarang />
+                </MenuProtectedRoute>
+              } 
+            />
             <Route 
               path="opname" 
               element={
-                <RoleProtectedRoute allowedRoles={['ADMIN', 'MANAGER']}>
+                <MenuProtectedRoute menuPath="/opname">
                   <PageOpname />
-                </RoleProtectedRoute>
+                </MenuProtectedRoute>
               } 
             />
-            <Route path="kartu-stok" element={<PageKartuStok />} />
+            <Route 
+              path="kartu-stok" 
+              element={
+                <MenuProtectedRoute menuPath="/kartu-stok">
+                  <PageKartuStok />
+                </MenuProtectedRoute>
+              } 
+            />
             
-            {/* Piutang & Hutang */}
-            <Route path="utang" element={<PageUtang />} />
-            {/* Hutang Supplier - Hanya ADMIN dan MANAGER */}
+            {/* Piutang & Hutang - Menggunakan permission dari database */}
+            <Route 
+              path="utang" 
+              element={
+                <MenuProtectedRoute menuPath="/utang">
+                  <PageUtang />
+                </MenuProtectedRoute>
+              } 
+            />
             <Route 
               path="hutang-supplier" 
               element={
-                <RoleProtectedRoute allowedRoles={['ADMIN', 'MANAGER']}>
+                <MenuProtectedRoute menuPath="/hutang-supplier">
                   <PageHutangSupplier />
-                </RoleProtectedRoute>
+                </MenuProtectedRoute>
               } 
             />
             
-            {/* Laporan - Hanya ADMIN dan MANAGER */}
+            {/* Laporan - Menggunakan permission dari database */}
             <Route 
               path="laporan" 
               element={
-                <RoleProtectedRoute allowedRoles={['ADMIN', 'MANAGER']}>
+                <MenuProtectedRoute menuPath="/laporan">
                   <PageLaporan />
-                </RoleProtectedRoute>
+                </MenuProtectedRoute>
               } 
             />
             
-            {/* Help - Semua role bisa akses */}
-            <Route path="help" element={<PageHelp />} />
+            {/* Help - Menggunakan permission dari database */}
+            <Route 
+              path="help" 
+              element={
+                <MenuProtectedRoute menuPath="/help">
+                  <PageHelp />
+                </MenuProtectedRoute>
+              } 
+            />
             
-            {/* Profile - Semua role bisa akses */}
-            <Route path="profile" element={<PageProfile />} />
+            {/* Profile - Menggunakan permission dari database */}
+            <Route 
+              path="profile" 
+              element={
+                <MenuProtectedRoute menuPath="/profile">
+                  <PageProfile />
+                </MenuProtectedRoute>
+              } 
+            />
+            
+            {/* User Management - Hanya ADMIN */}
+            <Route 
+              path="user-management" 
+              element={
+                <RoleProtectedRoute allowedRoles={['ADMIN']}>
+                  <PageUserManagement />
+                </RoleProtectedRoute>
+              } 
+            />
+            <Route 
+              path="role-menu-management" 
+              element={
+                <RoleProtectedRoute allowedRoles={['ADMIN']}>
+                  <PageRoleMenuManagement />
+                </RoleProtectedRoute>
+              } 
+            />
           </Route>
           
           {/* Redirect unknown routes */}

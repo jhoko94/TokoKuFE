@@ -6,7 +6,7 @@ import ModalKonfirmasi from '../components/modals/ModalKonfirmasi';
 import Pagination from '../components/Pagination';
 
 function PageMasterSupplier() {
-  const { distributors, deleteDistributor } = useStore();
+  const { distributors, deleteDistributor, bulkDeleteDistributors } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
@@ -15,6 +15,8 @@ function PageMasterSupplier() {
   const [isLoading, setIsLoading] = useState(true);
   const [modalState, setModalState] = useState(null);
   const [distributorToDelete, setDistributorToDelete] = useState(null);
+  const [selectedDistributors, setSelectedDistributors] = useState(new Set());
+  const [distributorsToBulkDelete, setDistributorsToBulkDelete] = useState(null);
 
   // Fetch dari bootstrap untuk sekarang (belum ada pagination endpoint untuk distributor)
   useEffect(() => {
@@ -61,35 +63,93 @@ function PageMasterSupplier() {
         className="w-full p-3 mb-4 border border-gray-300 rounded-lg shadow-sm"
       />
 
+      {/* Bulk Action Bar */}
+      {selectedDistributors.size > 0 && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium text-red-900">
+              {selectedDistributors.size} supplier dipilih
+            </span>
+            <button
+              onClick={() => setSelectedDistributors(new Set())}
+              className="text-sm text-red-600 hover:text-red-800"
+            >
+              Batal
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setDistributorsToBulkDelete(Array.from(selectedDistributors))}
+              className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow hover:bg-red-700 flex items-center space-x-2"
+            >
+              <TrashIcon className="w-4 h-4" />
+              <span>Hapus {selectedDistributors.size} Supplier</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white shadow-md rounded-lg overflow-hidden border border-gray-200">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
+              <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <input
+                  type="checkbox"
+                  checked={distributorsList.length > 0 && selectedDistributors.size === distributorsList.length}
+                  onChange={() => {
+                    if (selectedDistributors.size === distributorsList.length) {
+                      setSelectedDistributors(new Set());
+                    } else {
+                      setSelectedDistributors(new Set(distributorsList.map(d => d.id)));
+                    }
+                  }}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Alamat</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kontak</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact Person</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hutang</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Barang</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Aksi</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {isLoading ? (
               <tr>
-                <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
+                <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
                   Memuat data...
                 </td>
               </tr>
             ) : distributorsList.length === 0 ? (
               <tr>
-                <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
+                <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
                   {searchTerm ? 'Tidak ada supplier yang sesuai dengan pencarian' : 'Belum ada supplier'}
                 </td>
               </tr>
             ) : (
               distributorsList.map(distributor => (
-                <tr key={distributor.id}>
+                <tr key={distributor.id} className="hover:bg-gray-50">
+                  <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      checked={selectedDistributors.has(distributor.id)}
+                      onChange={() => {
+                        setSelectedDistributors(prev => {
+                          const newSet = new Set(prev);
+                          if (newSet.has(distributor.id)) {
+                            newSet.delete(distributor.id);
+                          } else {
+                            newSet.add(distributor.id);
+                          }
+                          return newSet;
+                        });
+                      }}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">{distributor.name}</td>
                   <td className="px-6 py-4 text-sm text-gray-500">{distributor.address || '-'}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -97,7 +157,11 @@ function PageMasterSupplier() {
                     {distributor.email && <div className="text-gray-500 text-xs">{distributor.email}</div>}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">{distributor.contactPerson || '-'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">{Number(distributor.debt || 0).toLocaleString('id-ID')}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      {distributor.productCount || distributor._count?.products || 0} barang
+                    </span>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
                     <button onClick={() => setModalState(distributor)} className="text-yellow-500 hover:text-yellow-700">
                       <PencilIcon className="w-5 h-5" />
@@ -145,11 +209,29 @@ function PageMasterSupplier() {
             try {
               await deleteDistributor(distributorToDelete.id);
               setDistributorToDelete(null);
+              setSelectedDistributors(new Set());
             } catch (error) {
               // Error sudah ditangani di deleteDistributor
             }
           }}
           onCancel={() => setDistributorToDelete(null)}
+        />
+      )}
+
+      {distributorsToBulkDelete && (
+        <ModalKonfirmasi
+          title="Hapus Banyak Supplier"
+          message={`Apakah Anda yakin ingin menghapus ${distributorsToBulkDelete.length} supplier yang dipilih?`}
+          onConfirm={async () => {
+            try {
+              await bulkDeleteDistributors(distributorsToBulkDelete);
+              setDistributorsToBulkDelete(null);
+              setSelectedDistributors(new Set());
+            } catch (error) {
+              // Error sudah ditangani di bulkDeleteDistributors
+            }
+          }}
+          onCancel={() => setDistributorsToBulkDelete(null)}
         />
       )}
     </div>

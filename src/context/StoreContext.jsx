@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import { normalizeUser, normalizeCustomer, normalizeCustomers, normalizeTransaction, normalizeTransactions } from '../utils/normalize';
 
 // BARU: Tentukan URL API dari file .env
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -19,13 +20,23 @@ const apiFetch = async (endpoint, options = {}) => {
   const response = await fetch(`${API_URL}${endpoint}`, options);
   
   if (!response.ok) {
+    // Parse error data
+    let errorData;
+    try {
+      errorData = await response.json();
+    } catch (e) {
+      errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+    }
+    
     // Jika unauthorized, clear token dan redirect ke login
-    if (response.status === 401) {
+    // TAPI: Jangan redirect jika ini adalah verifyToken (endpoint /auth/me)
+    // Biarkan verifyToken handle sendiri
+    if (response.status === 401 && !endpoint.includes('/auth/me')) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
-    const errorData = await response.json();
+    
     throw new Error(errorData.error || 'Terjadi kesalahan pada server');
   }
   
@@ -100,15 +111,34 @@ export function StoreProvider({ children }) {
           // Token valid, update user data
           // Backend mengembalikan { user: {...} }, jadi kita perlu akses response.user
           const userData = response.user || response;
-          setUser(userData);
+          const normalizedUser = normalizeUser(userData);
+          setUser(normalizedUser);
           setIsAuthenticated(true);
-          localStorage.setItem('user', JSON.stringify(userData));
+          localStorage.setItem('user', JSON.stringify(normalizedUser));
         } catch (error) {
-          // Token tidak valid, hapus dari localStorage
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          setUser(null);
-          setIsAuthenticated(false);
+          // Log error untuk debugging
+          console.error('Token verification failed:', error.message);
+          
+          // Hanya hapus token jika benar-benar error 401 (unauthorized)
+          // Jangan hapus untuk error lain (500, network error, dll)
+          if (error.message && (
+            error.message.includes('Token tidak valid') || 
+            error.message.includes('Token telah kadaluarsa') ||
+            error.message.includes('Token tidak ditemukan') ||
+            error.message.includes('unauthorized') ||
+            error.message.includes('401')
+          )) {
+            // Token tidak valid, hapus dari localStorage
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setUser(null);
+            setIsAuthenticated(false);
+          } else {
+            // Error lain (500, network, dll) - jangan hapus token, biarkan user tetap login
+            console.warn('Non-auth error during token verification, keeping token:', error.message);
+            // Tetap set loading false agar UI tidak stuck
+            setIsLoading(false);
+          }
         } finally {
           setIsLoading(false);
         }
@@ -126,9 +156,10 @@ export function StoreProvider({ children }) {
           body: JSON.stringify({ username, password }),
         });
         
+        const normalizedUser = normalizeUser(response.user);
         localStorage.setItem('token', response.token);
-        localStorage.setItem('user', JSON.stringify(response.user));
-        setUser(response.user);
+        localStorage.setItem('user', JSON.stringify(normalizedUser));
+        setUser(normalizedUser);
         setIsAuthenticated(true);
         showToast('Login berhasil', 'success');
         return response;
@@ -157,8 +188,9 @@ export function StoreProvider({ children }) {
         
         // Update user di state dan localStorage
         const updatedUser = response.user || response;
-        setUser(updatedUser);
-        localStorage.setItem('user', JSON.stringify(updatedUser));
+        const normalizedUser = normalizeUser(updatedUser);
+        setUser(normalizedUser);
+        localStorage.setItem('user', JSON.stringify(normalizedUser));
         showToast(response.message || 'Profile berhasil diperbarui', 'success');
         return response;
       } catch (error) {
@@ -224,7 +256,8 @@ export function StoreProvider({ children }) {
       try {
         setIsLoading(true);
         const data = await apiFetch('/bootstrap');
-        setCustomers(data.customers || []);
+        // Normalize customers untuk backward compatibility
+        setCustomers(normalizeCustomers(data.customers || []));
         // Products di bootstrap tetap semua untuk dropdown/search
         // Tapi untuk tabel, kita akan fetch dengan pagination
         setProducts(data.products || []);
@@ -390,6 +423,16 @@ export function StoreProvider({ children }) {
           setProducts(prev => [...prev, savedProduct]);
           showToast('Produk berhasil ditambahkan', 'success');
         }
+        
+        // Refresh distributor untuk update productCount
+        // Karena produk ditambah/diedit bisa mengubah productCount distributor
+        try {
+          const bootstrapData = await apiFetch('/bootstrap');
+          setDistributors(bootstrapData.distributors || []);
+        } catch (refreshError) {
+          console.error("Gagal refresh distributor:", refreshError);
+          // Jangan throw error, karena save product sudah berhasil
+        }
       } catch (error) {
         console.error("Gagal menyimpan produk:", error);
         showToast(error.message || 'Gagal menyimpan produk', 'error');
@@ -398,12 +441,44 @@ export function StoreProvider({ children }) {
     };
     
     // (PageMasterBarang)
+    const bulkDeleteProducts = async (productIds) => {
+      try {
+        const response = await apiFetch('/products/bulk', {
+          method: 'DELETE',
+          body: JSON.stringify({ ids: productIds }),
+        });
+        showToast(response.message || `Berhasil menghapus ${productIds.length} produk`, 'success');
+        
+        // Refresh distributor untuk update productCount
+        try {
+          const bootstrapData = await apiFetch('/bootstrap');
+          setDistributors(bootstrapData.distributors || []);
+        } catch (refreshError) {
+          console.error("Gagal refresh distributor:", refreshError);
+        }
+        
+        return response;
+      } catch (error) {
+        console.error("Gagal menghapus produk:", error);
+        showToast(error.message || 'Gagal menghapus produk', 'error');
+        throw error;
+      }
+    };
+
     const deleteProduct = async (productId) => {
       try {
         await apiFetch(`/products/${productId}`, { method: 'DELETE' });
         // Hapus produk dari state
         setProducts(prev => prev.filter(p => p.id !== productId));
         showToast('Produk berhasil dihapus', 'success');
+        
+        // Refresh distributor untuk update productCount
+        try {
+          const bootstrapData = await apiFetch('/bootstrap');
+          setDistributors(bootstrapData.distributors || []);
+        } catch (refreshError) {
+          console.error("Gagal refresh distributor:", refreshError);
+        }
       } catch (error) {
         console.error("Gagal menghapus produk:", error);
         showToast(error.message || 'Gagal menghapus produk', 'error');
@@ -443,6 +518,22 @@ export function StoreProvider({ children }) {
       }
     };
 
+    // (PageMasterBarang) - Bulk update minimal stok
+    const bulkUpdateMinStock = async (productIds, minStock) => {
+      try {
+        const result = await apiFetch('/products/bulk-update-minstock', {
+          method: 'PUT',
+          body: JSON.stringify({ productIds, minStock }),
+        });
+        showToast(result.message || `Berhasil mengubah minimal stok untuk ${result.updatedCount} produk`, 'success');
+        return result;
+      } catch (error) {
+        console.error("Gagal mengubah minimal stok:", error);
+        showToast(error.message || 'Gagal mengubah minimal stok', 'error');
+        throw error;
+      }
+    };
+
     // (PageUtang)
     const payDebt = async (customerId, amount) => {
       try {
@@ -451,7 +542,8 @@ export function StoreProvider({ children }) {
           body: JSON.stringify({ amount: Number(amount) }),
         });
         // Update customer di state (untuk sinkronisasi dengan PageJualan)
-        setCustomers(prev => prev.map(c => c.id === updatedCustomer.id ? updatedCustomer : c));
+        const normalizedCustomer = normalizeCustomer(updatedCustomer);
+        setCustomers(prev => prev.map(c => c.id === normalizedCustomer.id ? normalizedCustomer : c));
         showToast('Pembayaran utang berhasil', 'success');
         return updatedCustomer;
       } catch (error) {
@@ -701,7 +793,8 @@ export function StoreProvider({ children }) {
         // Jika transaksi BON, update customer debt di state langsung dari response
         // (setelah init() untuk memastikan data terbaru)
         if (type === 'BON' && result.customer) {
-          setCustomers(prev => prev.map(c => c.id === result.customer.id ? result.customer : c));
+          const normalizedCustomer = normalizeCustomer(result.customer);
+          setCustomers(prev => prev.map(c => c.id === normalizedCustomer.id ? normalizedCustomer : c));
         }
         
         return result;
@@ -758,11 +851,12 @@ export function StoreProvider({ children }) {
           body: JSON.stringify(customerData),
         });
 
+        const normalizedCustomer = normalizeCustomer(savedCustomer);
         if (isEditing) {
-          setCustomers(prev => prev.map(c => c.id === savedCustomer.id ? savedCustomer : c));
+          setCustomers(prev => prev.map(c => c.id === normalizedCustomer.id ? normalizedCustomer : c));
           showToast('Pelanggan berhasil diupdate', 'success');
         } else {
-          setCustomers(prev => [...prev, savedCustomer]);
+          setCustomers(prev => [...prev, normalizedCustomer]);
           showToast('Pelanggan berhasil ditambahkan', 'success');
         }
         return savedCustomer;
@@ -798,10 +892,24 @@ export function StoreProvider({ children }) {
         });
 
         if (isEditing) {
-          setDistributors(prev => prev.map(d => d.id === savedDistributor.id ? savedDistributor : d));
+          setDistributors(prev => prev.map(d => {
+            if (d.id === savedDistributor.id) {
+              // Pertahankan productCount dari data lama jika tidak ada di response
+              return {
+                ...savedDistributor,
+                productCount: savedDistributor.productCount ?? savedDistributor._count?.products ?? d.productCount ?? d._count?.products ?? 0
+              };
+            }
+            return d;
+          }));
           showToast('Supplier berhasil diupdate', 'success');
         } else {
-          setDistributors(prev => [...prev, savedDistributor]);
+          // Untuk create, productCount sudah 0 (supplier baru)
+          const newDistributor = {
+            ...savedDistributor,
+            productCount: savedDistributor.productCount ?? savedDistributor._count?.products ?? 0
+          };
+          setDistributors(prev => [...prev, newDistributor]);
           showToast('Supplier berhasil ditambahkan', 'success');
         }
         return savedDistributor;
@@ -817,6 +925,22 @@ export function StoreProvider({ children }) {
         await apiFetch(`/distributors/${distributorId}`, { method: 'DELETE' });
         setDistributors(prev => prev.filter(d => d.id !== distributorId));
         showToast('Supplier berhasil dihapus', 'success');
+      } catch (error) {
+        console.error("Gagal menghapus supplier:", error);
+        showToast(error.message || 'Gagal menghapus supplier', 'error');
+        throw error;
+      }
+    };
+
+    const bulkDeleteDistributors = async (distributorIds) => {
+      try {
+        const response = await apiFetch('/distributors/bulk', {
+          method: 'DELETE',
+          body: JSON.stringify({ ids: distributorIds }),
+        });
+        setDistributors(prev => prev.filter(d => !distributorIds.includes(d.id)));
+        showToast(response.message || `Berhasil menghapus ${distributorIds.length} supplier`, 'success');
+        return response;
       } catch (error) {
         console.error("Gagal menghapus supplier:", error);
         showToast(error.message || 'Gagal menghapus supplier', 'error');
@@ -1175,8 +1299,10 @@ export function StoreProvider({ children }) {
       // Semua fungsi aksi
       saveProduct,
       deleteProduct,
+      bulkDeleteProducts,
       bulkUpdateDistributor,
       bulkUpdateUnit,
+      bulkUpdateMinStock,
       payDebt,
       sendEmailToCustomer,
       bulkSendEmail,
@@ -1202,6 +1328,7 @@ export function StoreProvider({ children }) {
       deleteCustomer,
       saveDistributor, // CRUD Distributor
       deleteDistributor,
+      bulkDeleteDistributors,
       fetchDistributorsWithDebtPaginated, // Fetch distributors with debt
       payDistributorDebt, // Bayar hutang supplier
       getAllTransactions, // Get all transactions
@@ -1224,6 +1351,7 @@ export function StoreProvider({ children }) {
       changePassword, // Change user password
       getStore, // Get store information
       updateStore, // Update store information
+      apiFetch, // Export apiFetch untuk penggunaan langsung (e.g., scan barcode)
     };
 
     // BARU: Tampilkan loader jika data awal belum siap (hanya jika sudah authenticated dan benar-benar loading)

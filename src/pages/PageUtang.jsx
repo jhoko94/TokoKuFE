@@ -107,7 +107,7 @@ function PageUtang() {
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold text-gray-900">{customer.name}</h3>
                     {customer.type && (
-                      <p className="text-sm text-gray-600 mt-1">Tipe: {customer.type}</p>
+                      <p className="text-sm text-gray-600 mt-1">Tipe: {typeof customer.type === 'object' ? customer.type.name || customer.type.code : customer.type}</p>
                     )}
                     {customer.address && (
                       <p className="text-sm text-gray-600 mt-1">{customer.address}</p>

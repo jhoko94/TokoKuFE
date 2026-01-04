@@ -6,19 +6,20 @@ function ModalMasterPelanggan({ customerToEdit, onClose }) {
   const { saveCustomer } = useStore();
   const [formData, setFormData] = useState({
     name: '',
-    type: 'UMUM',
+    type: 'TETAP', // Default ke TETAP karena UMUM hanya untuk "Pelanggan Umum" yang dibuat otomatis
     address: '',
     phone: '',
     email: '',
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isDefaultCustomer = customerToEdit?.name === 'Pelanggan Umum';
 
   useEffect(() => {
     if (customerToEdit) {
       setFormData({
         name: customerToEdit.name || '',
-        type: customerToEdit.type || 'UMUM',
+        type: typeof customerToEdit.type === 'object' ? customerToEdit.type.code : (customerToEdit.type || 'UMUM'),
         address: customerToEdit.address || '',
         phone: customerToEdit.phone || '',
         email: customerToEdit.email || '',
@@ -26,7 +27,7 @@ function ModalMasterPelanggan({ customerToEdit, onClose }) {
     } else {
       setFormData({
         name: '',
-        type: 'UMUM',
+        type: 'TETAP', // Default ke TETAP karena UMUM hanya untuk "Pelanggan Umum" yang dibuat otomatis
         address: '',
         phone: '',
         email: '',
@@ -39,6 +40,9 @@ function ModalMasterPelanggan({ customerToEdit, onClose }) {
     const newErrors = {};
     if (!formData.name.trim()) {
       newErrors.name = 'Nama pelanggan harus diisi';
+    } else if (!customerToEdit && formData.name.trim() === 'Pelanggan Umum') {
+      // Mencegah create customer baru dengan nama "Pelanggan Umum"
+      newErrors.name = 'Nama "Pelanggan Umum" tidak bisa digunakan karena sudah menjadi default customer';
     }
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Format email tidak valid';
@@ -79,6 +83,14 @@ function ModalMasterPelanggan({ customerToEdit, onClose }) {
           </button>
         </div>
 
+        {isDefaultCustomer && (
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-800">
+              <strong>Catatan:</strong> "Pelanggan Umum" adalah default customer dan tidak bisa diubah nama atau tipenya. Hanya alamat, telepon, dan email yang bisa diubah.
+            </p>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -88,7 +100,8 @@ function ModalMasterPelanggan({ customerToEdit, onClose }) {
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className={`w-full p-2 border rounded-lg ${errors.name ? 'border-red-500' : 'border-gray-300'}`}
+              disabled={isDefaultCustomer}
+              className={`w-full p-2 border rounded-lg ${errors.name ? 'border-red-500' : 'border-gray-300'} ${isDefaultCustomer ? 'bg-gray-100 cursor-not-allowed' : ''}`}
               placeholder="Masukkan nama pelanggan"
             />
             {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
@@ -101,9 +114,10 @@ function ModalMasterPelanggan({ customerToEdit, onClose }) {
             <select
               value={formData.type}
               onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-              className="w-full p-2 border border-gray-300 rounded-lg"
+              disabled={isDefaultCustomer}
+              className={`w-full p-2 border border-gray-300 rounded-lg ${isDefaultCustomer ? 'bg-gray-100 cursor-not-allowed' : ''}`}
             >
-              <option value="UMUM">UMUM</option>
+              {/* UMUM tidak ditampilkan karena hanya untuk "Pelanggan Umum" yang dibuat otomatis */}
               <option value="TETAP">TETAP</option>
               <option value="GROSIR">GROSIR</option>
             </select>

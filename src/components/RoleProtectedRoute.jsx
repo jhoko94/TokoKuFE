@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
+import { getUserRole } from '../utils/normalize';
 
 /**
  * RoleProtectedRoute - Melindungi route berdasarkan role user
@@ -33,7 +34,8 @@ function RoleProtectedRoute({ children, allowedRoles = [] }) {
   }
 
   // Cek apakah user memiliki role yang diizinkan
-  if (!user || !allowedRoles.includes(user.role)) {
+  const userRole = getUserRole(user);
+  if (!user || !allowedRoles.includes(userRole)) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50">
         <div className="text-center max-w-md mx-4">
@@ -46,7 +48,7 @@ function RoleProtectedRoute({ children, allowedRoles = [] }) {
             Role yang diizinkan: {allowedRoles.join(', ')}
           </p>
           <p className="text-sm text-gray-500 mt-2">
-            Role Anda: {user?.role || 'Tidak diketahui'}
+            Role Anda: {userRole || 'Tidak diketahui'}
           </p>
           <button
             onClick={() => window.history.back()}

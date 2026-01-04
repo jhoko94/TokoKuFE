@@ -22,6 +22,7 @@ import {
   BuildingStorefrontIcon
 } from '@heroicons/react/24/outline';
 import { useStore } from '../context/StoreContext';
+import { getUserRole } from '../utils/normalize';
 
 // Logika NavLink yang sama dengan Sidebar
 const getNavLinkClass = ({ isActive }) => {
@@ -44,6 +45,9 @@ function Header() {
   const { user, logout, getStore } = useStore();
   const navigate = useNavigate();
   const [storeName, setStoreName] = useState('POS System');
+  
+  // Get user role (handle both object and string)
+  const userRole = getUserRole(user);
 
   // Load store name
   useEffect(() => {
@@ -79,7 +83,7 @@ function Header() {
             <div className="hidden sm:flex items-center gap-2 text-sm text-white">
               <span>{user.name}</span>
               <span className="px-2 py-1 bg-white/20 text-white rounded text-xs font-semibold backdrop-blur-sm">
-                {user.role}
+                {userRole || (typeof user?.role === 'object' ? user?.role?.name : user?.role)}
               </span>
             </div>
           )}
@@ -108,11 +112,12 @@ function Header() {
         <div className="absolute top-full left-0 right-0 bg-white shadow-lg z-30 p-4 border-t border-gray-100 max-h-[calc(100vh-80px)] overflow-y-auto">
           <div className="space-y-4">
             {/* Master Data - Hanya untuk ADMIN dan MANAGER */}
-            {(user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
+            {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
               <div>
                 <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Master Data</div>
                 <ul className="flex flex-col space-y-1">
-                  <li><MobileNavLink to="/master-barang" title="Master Barang" icon={<PencilSquareIcon className="w-5 h-5" />} onClick={closeMenu} /></li>
+                  <li><MobileNavLink to="/master-barang" title="Kelola Master Barang" icon={<PencilSquareIcon className="w-5 h-5" />} onClick={closeMenu} /></li>
+                  <li><MobileNavLink to="/barang-master" title="Master Barang" icon={<ArchiveBoxIcon className="w-5 h-5" />} onClick={closeMenu} /></li>
                   <li><MobileNavLink to="/master-pelanggan" title="Master Pelanggan" icon={<UserGroupIcon className="w-5 h-5" />} onClick={closeMenu} /></li>
                   <li><MobileNavLink to="/master-supplier" title="Master Supplier" icon={<BuildingStorefrontIcon className="w-5 h-5" />} onClick={closeMenu} /></li>
                 </ul>
@@ -127,7 +132,7 @@ function Header() {
                 <li><MobileNavLink to="/history-penjualan" title="History Penjualan" icon={<ClockIcon className="w-5 h-5" />} onClick={closeMenu} /></li>
                 <li><MobileNavLink to="/retur-penjualan" title="Retur Penjualan" icon={<ArrowPathIcon className="w-5 h-5" />} onClick={closeMenu} /></li>
                 {/* Pembelian - Hanya untuk ADMIN/MANAGER */}
-                {(user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
+                {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
                   <>
                     <li><MobileNavLink to="/pesan-barang" title="Pesan Barang (PO)" icon={<TruckIcon className="w-5 h-5" />} onClick={closeMenu} /></li>
                     <li><MobileNavLink to="/cek-pesanan" title="Cek Pesanan" icon={<ClipboardDocumentCheckIcon className="w-5 h-5" />} onClick={closeMenu} /></li>
@@ -143,7 +148,7 @@ function Header() {
               <ul className="flex flex-col space-y-1">
                 <li><MobileNavLink to="/barang" title="Cek Barang" icon={<ArchiveBoxIcon className="w-5 h-5" />} onClick={closeMenu} /></li>
                 {/* Stok Opname hanya untuk ADMIN/MANAGER */}
-                {(user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
+                {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
                   <li><MobileNavLink to="/opname" title="Stok Opname" icon={<CalculatorIcon className="w-5 h-5" />} onClick={closeMenu} /></li>
                 )}
                 <li><MobileNavLink to="/kartu-stok" title="Kartu Stok" icon={<BookOpenIcon className="w-5 h-5" />} onClick={closeMenu} /></li>
@@ -156,14 +161,14 @@ function Header() {
               <ul className="flex flex-col space-y-1">
                 <li><MobileNavLink to="/utang" title="Piutang Pelanggan" icon={<CreditCardIcon className="w-5 h-5" />} onClick={closeMenu} /></li>
                 {/* Hutang Supplier - Hanya untuk ADMIN dan MANAGER */}
-                {(user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
+                {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
                   <li><MobileNavLink to="/hutang-supplier" title="Hutang Supplier" icon={<BanknotesIcon className="w-5 h-5" />} onClick={closeMenu} /></li>
                 )}
               </ul>
             </div>
 
             {/* Laporan - Hanya untuk ADMIN dan MANAGER */}
-            {(user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
+            {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
               <div>
                 <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Laporan</div>
                 <ul className="flex flex-col space-y-1">

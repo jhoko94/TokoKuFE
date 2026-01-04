@@ -14,7 +14,8 @@ function PageBarang() {
   const { fetchProductsPaginated, distributors, user } = useStore();
   
   // Cek apakah user adalah ADMIN atau MANAGER (untuk tombol tambah stok)
-  const isAdminOrManager = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  const userRole = typeof user?.role === 'object' ? user?.role?.code : user?.role;
+  const isAdminOrManager = userRole === 'ADMIN' || userRole === 'MANAGER';
   
   // 2. State lokal
   const [searchTerm, setSearchTerm] = useState('');

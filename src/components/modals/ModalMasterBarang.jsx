@@ -7,7 +7,7 @@ const DEFAULT_FORM_DATA = {
   id: null,
   sku: '',
   name: '',
-  distributorId: '',
+  distributors: [], // Array of { distributorId, isDefault }
   minStock: 10,
   units: [
     { name: 'Pcs', price: 0, conversion: 1, barcodes: [] } // Satuan dasar
@@ -21,8 +21,13 @@ export default function ModalMasterBarang({ productToEdit, onClose, onSave }) {
   const [formData, setFormData] = useState(DEFAULT_FORM_DATA);
   
   // 'newBarcodes' adalah state terpisah untuk mengelola input "barcode baru"
-  // Ini penting agar input barcode untuk unit 1 tidak bentrok dgn unit 2
-  const [newBarcodes, setNewBarcodes] = useState([]);
+  // Format: { [distributorId_unitId]: barcodeValue }
+  // Contoh: { "dist1_unit1": "123456", "dist1_unit2": "789012" }
+  const [newBarcodes, setNewBarcodes] = useState({});
+  
+  // State untuk modal tambah distributor
+  const [isAddDistributorModalOpen, setIsAddDistributorModalOpen] = useState(false);
+  const [selectedDistributorId, setSelectedDistributorId] = useState('');
   
   // State untuk error validation
   const [errors, setErrors] = useState({}); 
@@ -40,12 +45,39 @@ export default function ModalMasterBarang({ productToEdit, onClose, onSave }) {
         return a.conversion - b.conversion;
       });
       
+      // Pastikan setiap unit punya barcodes (array), karena sekarang barcodes adalah relasi
+      const unitsWithBarcodes = sortedUnits.map(unit => ({
+        ...unit,
+        barcodes: unit.barcodes ? 
+          (Array.isArray(unit.barcodes) ? unit.barcodes : 
+           (unit.barcodes.map ? unit.barcodes.map(b => b.barcode || b) : [])) : 
+          []
+      }));
+      
+      // Ambil distributors dari ProductDistributor (Many-to-Many)
+      const productDistributors = productToEdit.distributors?.map(d => {
+        // Normalisasi barcode dari backend: format { barcode, unitId, unit: { id, name } }
+        const normalizedBarcodes = (d.barcodes || []).map(b => ({
+          barcode: typeof b === 'string' ? b : (b?.barcode || b),
+          unitId: typeof b === 'object' ? (b?.unitId || b?.unit?.id) : null,
+          unit: typeof b === 'object' ? b?.unit : null
+        }));
+        
+        return {
+          distributorId: d.distributorId || d.distributor?.id || d.id,
+          isDefault: d.isDefault || false,
+          distributor: d.distributor, // Keep distributor info untuk display
+          barcodes: normalizedBarcodes // Barcode per distributor dengan format normal
+        };
+      }) || [];
+      
       setFormData({
         ...productToEdit,
-        units: sortedUnits
+        distributors: productDistributors,
+        units: unitsWithBarcodes
       });
       // Siapkan state untuk input barcode (satu string kosong untuk setiap unit)
-      setNewBarcodes(new Array(sortedUnits.length).fill(''));
+      setNewBarcodes(new Array(unitsWithBarcodes.length).fill(''));
     } else {
       // Mode ADD: Reset form ke default
       setFormData(DEFAULT_FORM_DATA);
@@ -81,13 +113,13 @@ export default function ModalMasterBarang({ productToEdit, onClose, onSave }) {
      });
   };
   
-  // Untuk input "barcode baru"
-  const handleNewBarcodeChange = (index, value) => {
-    setNewBarcodes(prev => {
-      const newArr = [...prev];
-      newArr[index] = value;
-      return newArr;
-    });
+  // Untuk input "barcode baru" per kombinasi (distributor + unit)
+  const handleNewBarcodeChange = (distributorId, unitId, value) => {
+    const key = `${distributorId}_${unitId}`;
+    setNewBarcodes(prev => ({
+      ...prev,
+      [key]: value
+    }));
   };
 
   // 3. Handler Aksi Form Dinamis (Tambah/Hapus)
@@ -113,29 +145,136 @@ export default function ModalMasterBarang({ productToEdit, onClose, onSave }) {
     setNewBarcodes(prev => prev.filter((_, i) => i !== index));
   };
   
-  const handleAddBarcode = (unitIndex) => {
-    const barcode = newBarcodes[unitIndex].trim();
+  // Handler untuk tambah barcode per kombinasi (distributor + unit)
+  const handleAddBarcode = (distributorId, unitId) => {
+    const key = `${distributorId}_${unitId}`;
+    const barcode = (newBarcodes[key] || '').trim();
     if (!barcode) return;
     
-    setFormData(prev => {
-        const newUnits = [...prev.units];
-        const unit = newUnits[unitIndex];
-        // Cek duplikat
-        if (!unit.barcodes.includes(barcode)) {
-            unit.barcodes = [...unit.barcodes, barcode];
-        }
-        return { ...prev, units: newUnits };
+    // Cek apakah barcode sudah ada untuk kombinasi ini
+    const distributor = formData.distributors.find(d => {
+      const distId = d.distributorId || d.distributor?.id || d.id;
+      return distId === distributorId;
     });
-    // Kosongkan input "barcode baru"
-    handleNewBarcodeChange(unitIndex, '');
+    
+    if (distributor) {
+      const existingBarcodes = distributor.barcodes || [];
+      const barcodeExists = existingBarcodes.some(b => {
+        const bValue = typeof b === 'string' ? b : (b?.barcode || b);
+        const bUnitId = typeof b === 'object' ? (b?.unitId || b?.unit?.id) : null;
+        return bValue === barcode && bUnitId === unitId;
+      });
+      
+      if (barcodeExists) {
+        alert('Barcode ini sudah ada untuk kombinasi distributor dan unit ini');
+        return;
+      }
+      
+      // Tambah barcode ke distributor
+      setFormData(prev => ({
+        ...prev,
+        distributors: prev.distributors.map(d => {
+          const distId = d.distributorId || d.distributor?.id || d.id;
+          if (distId === distributorId) {
+            return {
+              ...d,
+              barcodes: [...(d.barcodes || []), { barcode, unitId }]
+            };
+          }
+          return d;
+        })
+      }));
+      
+      // Kosongkan input
+      handleNewBarcodeChange(distributorId, unitId, '');
+    }
   };
   
-  const handleRemoveBarcode = (unitIndex, barcodeToRemove) => {
-    setFormData(prev => {
-        const newUnits = [...prev.units];
-        newUnits[unitIndex].barcodes = newUnits[unitIndex].barcodes.filter(b => b !== barcodeToRemove);
-        return { ...prev, units: newUnits };
+  // Handler untuk hapus barcode per kombinasi (distributor + unit)
+  const handleRemoveBarcode = (distributorId, unitId, barcodeToRemove) => {
+    setFormData(prev => ({
+      ...prev,
+      distributors: prev.distributors.map(d => {
+        const distId = d.distributorId || d.distributor?.id || d.id;
+        if (distId === distributorId) {
+          return {
+            ...d,
+            barcodes: (d.barcodes || []).filter(b => {
+              const bValue = typeof b === 'string' ? b : (b?.barcode || b);
+              const bUnitId = typeof b === 'object' ? (b?.unitId || b?.unit?.id) : null;
+              return !(bValue === barcodeToRemove && bUnitId === unitId);
+            })
+          };
+        }
+        return d;
+      })
+    }));
+  };
+
+  // Handler untuk manage distributors
+  const handleAddDistributor = () => {
+    if (!selectedDistributorId) return;
+    
+    // Cek apakah distributor sudah ada
+    const exists = formData.distributors.some(d => {
+      const distId = d.distributorId || d.distributor?.id || d.id;
+      return distId === selectedDistributorId;
     });
+    if (exists) {
+      setErrors({ ...errors, distributors: 'Distributor ini sudah ditambahkan' });
+      return;
+    }
+    
+    // Tambah distributor baru
+    const isFirst = formData.distributors.length === 0;
+    setFormData(prev => ({
+      ...prev,
+      distributors: [
+        ...prev.distributors,
+        {
+          distributorId: selectedDistributorId,
+          isDefault: isFirst // Supplier pertama otomatis jadi default
+        }
+      ]
+    }));
+    
+    setSelectedDistributorId('');
+    setIsAddDistributorModalOpen(false);
+    setErrors({ ...errors, distributors: null });
+  };
+
+  const handleRemoveDistributor = (distributorIdToRemove) => {
+    setFormData(prev => {
+      const newDistributors = prev.distributors.filter(d => {
+        const distId = d.distributorId || d.distributor?.id || d.id;
+        return distId !== distributorIdToRemove;
+      });
+      
+      // Jika yang dihapus adalah default, set distributor pertama sebagai default
+      const removedWasDefault = prev.distributors.find(d => {
+        const distId = d.distributorId || d.distributor?.id || d.id;
+        return distId === distributorIdToRemove;
+      })?.isDefault;
+      if (removedWasDefault && newDistributors.length > 0) {
+        newDistributors[0].isDefault = true;
+      }
+      
+      return { ...prev, distributors: newDistributors };
+    });
+  };
+
+  const handleSetDefaultDistributor = (distributorId) => {
+    setFormData(prev => ({
+      ...prev,
+      distributors: prev.distributors.map(d => {
+        const distId = d.distributorId || d.distributor?.id || d.id;
+        return {
+          ...d,
+          distributorId: distId, // Pastikan distributorId selalu ada
+          isDefault: distId === distributorId
+        };
+      })
+    }));
   };
   
   // 4. Handler Submit Form
@@ -156,9 +295,9 @@ export default function ModalMasterBarang({ productToEdit, onClose, onSave }) {
       newErrors.name = 'Nama barang harus diisi';
     }
     
-    // Validasi Distributor
-    if (!formData.distributorId) {
-      newErrors.distributorId = 'Distributor harus dipilih';
+    // Validasi Distributor (Minimal 1 distributor)
+    if (!formData.distributors || formData.distributors.length === 0) {
+      newErrors.distributors = 'Minimal harus ada 1 distributor';
     }
     
     // Validasi Min Stock
@@ -215,8 +354,79 @@ export default function ModalMasterBarang({ productToEdit, onClose, onSave }) {
       });
       
       // Panggil fungsi dari Context untuk menyimpan dengan units yang sudah terurut
+      // Normalisasi distributors untuk pastikan distributorId selalu ada, termasuk barcodes
+      const normalizedDistributors = formData.distributors.map(d => {
+        const distId = d.distributorId || d.distributor?.id || d.id;
+        
+        // Normalisasi barcode: pastikan format { barcode, unitId }
+        const normalizedBarcodes = (d.barcodes || []).map(b => {
+          const barcodeValue = typeof b === 'string' ? b : (b?.barcode || b);
+          
+          // Cari unitId dari barcode data
+          let targetUnitId = null;
+          if (typeof b === 'object') {
+            targetUnitId = b.unitId || b.unit?.id;
+          }
+          
+          // PENTING: Jika unitId adalah temp_unit_X (dari mode create), kita perlu mencari unit yang sesuai
+          // berdasarkan index di sortedUnits
+          if (targetUnitId && typeof targetUnitId === 'string' && targetUnitId.startsWith('temp_unit_')) {
+            // Ini adalah mode create, cari unit berdasarkan index
+            const tempIndex = parseInt(targetUnitId.replace('temp_unit_', ''));
+            if (!isNaN(tempIndex) && sortedUnits[tempIndex]) {
+              // Gunakan id unit jika ada (mode edit), jika belum ada (mode create baru), 
+              // kita perlu cari unit berdasarkan urutan di sortedUnits
+              if (sortedUnits[tempIndex].id) {
+                // Mode edit: unit sudah punya id - GUNAKAN ID INI
+                targetUnitId = sortedUnits[tempIndex].id;
+              } else {
+                // Mode create baru: unit belum punya id
+                // Karena ini mode create, unit akan dibuat bersamaan dengan product
+                // Kita perlu pastikan urutan unit sesuai dengan sortedUnits
+                // Untuk sementara, kita akan gunakan null dan backend akan default ke satuan kecil
+                // TAPI ini tidak ideal - kita perlu pastikan unit sudah dibuat dulu
+                targetUnitId = null; // Backend akan handle
+              }
+            } else {
+              // Index tidak valid
+              targetUnitId = null;
+            }
+          }
+          
+          // PENTING: Hanya default ke satuan kecil jika:
+          // 1. targetUnitId adalah null/undefined
+          // 2. targetUnitId adalah temp_unit_X yang tidak bisa di-resolve
+          // Jika targetUnitId sudah valid (ID database), JANGAN diubah!
+          const isValidUnitId = targetUnitId && 
+                                typeof targetUnitId === 'string' && 
+                                !targetUnitId.startsWith('temp_unit_') &&
+                                targetUnitId.trim() !== '';
+          
+          if (!isValidUnitId) {
+            // Cari unit dengan conversion = 1 (satuan kecil) sebagai default
+            const baseUnit = sortedUnits.find(u => u.conversion === 1) || sortedUnits[0];
+            targetUnitId = baseUnit?.id;
+          }
+          
+          return {
+            barcode: barcodeValue,
+            unitId: targetUnitId
+          };
+        });
+        
+        return {
+          distributorId: distId,
+          isDefault: d.isDefault || false,
+          barcodes: normalizedBarcodes
+        };
+      });
+      
+      // Kirim distributorId pertama sebagai default untuk backward compatibility dengan backend
+      const defaultDistributor = normalizedDistributors.find(d => d.isDefault) || normalizedDistributors[0];
       await saveProduct({
         ...formData,
+        distributorId: defaultDistributor?.distributorId, // Untuk backward compatibility
+        distributors: normalizedDistributors, // Data lengkap untuk Many-to-Many
         units: sortedUnits
       });
       // Panggil callback onSave jika ada (untuk reload data di parent)
@@ -264,22 +474,106 @@ export default function ModalMasterBarang({ productToEdit, onClose, onSave }) {
                 />
                 {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
             </div>
+            {/* Section Distributor (Many-to-Many) */}
             <div>
-                <label className="block text-sm font-medium text-gray-700">Distributor:</label>
-                <select 
-                  name="distributorId" 
-                  value={formData.distributorId} 
-                  onChange={handleFormChange}
-                  className={`w-full p-2 mt-1 border rounded-lg bg-white ${errors.distributorId ? 'border-red-500' : 'border-gray-300'}`}
-                  required
-                >
-                  <option value="">-- Pilih Distributor --</option>
-                  {distributors.map(d => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                  ))}
-                </select>
-                {errors.distributorId && <p className="text-red-500 text-xs mt-1">{errors.distributorId}</p>}
+              <label className="block text-sm font-medium text-gray-700 mb-2">Distributor:</label>
+              
+              {/* List Distributor yang sudah ditambahkan */}
+              {formData.distributors && formData.distributors.length > 0 ? (
+                <div className="space-y-2 mb-3">
+                  {formData.distributors.map((dist, index) => {
+                    // Cari distributor dari list atau dari dist.distributor (jika dari backend)
+                    const distributor = dist.distributor || distributors.find(d => d.id === dist.distributorId);
+                    if (!distributor) return null;
+                    
+                    return (
+                      <div key={dist.distributorId || distributor.id} className="flex items-center justify-between p-2 bg-gray-50 border border-gray-200 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="defaultDistributor"
+                            checked={dist.isDefault}
+                            onChange={() => handleSetDefaultDistributor(dist.distributorId || distributor.id)}
+                            className="text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm font-medium">{distributor.name}</span>
+                          {dist.isDefault && (
+                            <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">Supplier Utama</span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDistributor(dist.distributorId || distributor.id)}
+                          className="text-red-500 hover:text-red-700 p-1"
+                          title="Hapus Distributor"
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 mb-3 italic">Belum ada distributor ditambahkan</p>
+              )}
+              
+              {/* Tombol Tambah Distributor */}
+              <button
+                type="button"
+                onClick={() => setIsAddDistributorModalOpen(true)}
+                className="w-full p-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-600 transition-colors"
+              >
+                + Tambah Distributor
+              </button>
+              
+              {errors.distributors && <p className="text-red-500 text-xs mt-1">{errors.distributors}</p>}
             </div>
+            
+            {/* Modal Tambah Distributor */}
+            {isAddDistributorModalOpen && (
+              <>
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={() => setIsAddDistributorModalOpen(false)}></div>
+                <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl z-50 w-full max-w-md p-6">
+                  <h4 className="text-lg font-bold mb-4">Tambah Distributor</h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Distributor:</label>
+                      <select
+                        value={selectedDistributorId}
+                        onChange={(e) => setSelectedDistributorId(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-lg bg-white"
+                      >
+                        <option value="">-- Pilih Distributor --</option>
+                        {distributors
+                          .filter(d => !formData.distributors.some(pd => pd.distributorId === d.id))
+                          .map(d => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
+                          ))}
+                      </select>
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAddDistributorModalOpen(false);
+                          setSelectedDistributorId('');
+                        }}
+                        className="px-4 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddDistributor}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      >
+                        Tambah
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
             <div>
                 <label className="block text-sm font-medium text-gray-700">Stok Minimum ({baseUnitName}):</label>
                 <input 
@@ -291,7 +585,7 @@ export default function ModalMasterBarang({ productToEdit, onClose, onSave }) {
                   min="0"
                 />
                 {errors.minStock && <p className="text-red-500 text-xs mt-1">{errors.minStock}</p>}
-            </div>
+              </div>
 
             {/* --- Bagian Unit (Logika Dinamis) --- */}
             <div>
@@ -352,31 +646,6 @@ export default function ModalMasterBarang({ productToEdit, onClose, onSave }) {
                       {errors[`unit_0_price`] && <p className="text-red-500 text-xs mt-1">{errors[`unit_0_price`]}</p>}
                     </div>
                     
-                    {/* Barcode untuk satuan kecil */}
-                    <div>
-                      <label className="text-xs font-medium text-gray-700 mb-1 block">Barcodes Terdaftar:</label>
-                      <div className="flex flex-wrap gap-1 my-1 p-2 border rounded bg-white min-h-[38px]">
-                        {formData.units[0].barcodes.map(b => (
-                          <span key={b} className="bg-gray-200 text-xs font-medium px-2 py-0.5 rounded flex items-center gap-1">
-                            {b}
-                            <button type="button" onClick={() => handleRemoveBarcode(0, b)} className="text-red-500 hover:text-red-700">&times;</button>
-                          </span>
-                        ))}
-                        {formData.units[0].barcodes.length === 0 && <span className="text-xs text-gray-500 italic">Belum ada barcode</span>}
-                      </div>
-                      <div className="flex gap-2 mt-2">
-                        <input type="text" placeholder="Scan/Input barcode baru..."
-                          value={newBarcodes[0] || ''}
-                          onChange={(e) => handleNewBarcodeChange(0, e.target.value)}
-                          onKeyPress={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleAddBarcode(0); }}}
-                          className="w-2/3 p-2 border border-gray-300 rounded-lg"
-                        />
-                        <button type="button" onClick={() => handleAddBarcode(0)} 
-                          className="w-1/3 bg-blue-500 text-white text-sm font-bold py-2 px-3 rounded hover:bg-blue-600">
-                          + Tambah
-                        </button>
-                      </div>
-                    </div>
                   </div>
                 )}
               </div>
@@ -455,31 +724,6 @@ export default function ModalMasterBarang({ productToEdit, onClose, onSave }) {
                           {errors[`unit_${actualIndex}_price`] && <p className="text-red-500 text-xs mt-1">{errors[`unit_${actualIndex}_price`]}</p>}
                         </div>
                         
-                        {/* Barcode untuk satuan besar */}
-                        <div>
-                          <label className="text-xs font-medium text-gray-700 mb-1 block">Barcodes Terdaftar:</label>
-                          <div className="flex flex-wrap gap-1 my-1 p-2 border rounded bg-white min-h-[38px]">
-                            {unit.barcodes.map(b => (
-                              <span key={b} className="bg-gray-200 text-xs font-medium px-2 py-0.5 rounded flex items-center gap-1">
-                                {b}
-                                <button type="button" onClick={() => handleRemoveBarcode(actualIndex, b)} className="text-red-500 hover:text-red-700">&times;</button>
-                              </span>
-                            ))}
-                            {unit.barcodes.length === 0 && <span className="text-xs text-gray-500 italic">Belum ada barcode</span>}
-                          </div>
-                          <div className="flex gap-2 mt-2">
-                            <input type="text" placeholder="Scan/Input barcode baru..."
-                              value={newBarcodes[actualIndex] || ''}
-                              onChange={(e) => handleNewBarcodeChange(actualIndex, e.target.value)}
-                              onKeyPress={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleAddBarcode(actualIndex); }}}
-                              className="w-2/3 p-2 border border-gray-300 rounded-lg"
-                            />
-                            <button type="button" onClick={() => handleAddBarcode(actualIndex)} 
-                              className="w-1/3 bg-green-500 text-white text-sm font-bold py-2 px-3 rounded hover:bg-green-600">
-                              + Tambah
-                            </button>
-                          </div>
-                        </div>
                       </div>
                     );
                   })}
@@ -489,6 +733,117 @@ export default function ModalMasterBarang({ productToEdit, onClose, onSave }) {
                 </button>
               </div>
             </div>
+
+            {/* --- Bagian Barcode per Distributor + Unit --- */}
+            {formData.distributors && formData.distributors.length > 0 && formData.units && formData.units.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Barcode per Distributor & Satuan:</label>
+                <p className="text-xs text-gray-600 mb-3">
+                  Setiap kombinasi distributor dan satuan dapat memiliki barcode yang berbeda.
+                </p>
+                
+                <div className="space-y-4">
+                  {formData.distributors.map((dist) => {
+                    const distributor = dist.distributor || distributors.find(d => d.id === (dist.distributorId || dist.id));
+                    if (!distributor) return null;
+                    
+                    const distId = dist.distributorId || distributor.id;
+                    
+                    return (
+                      <div key={distId} className="p-3 border border-gray-300 rounded-lg bg-gray-50">
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-sm font-semibold text-gray-800">{distributor.name}</span>
+                          {dist.isDefault && (
+                            <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">Supplier Utama</span>
+                          )}
+                        </div>
+                        
+                        <div className="space-y-3">
+                          {formData.units.map((unit, unitIndex) => {
+                            // PENTING: Gunakan unit.id jika ada (mode edit), jika tidak gunakan temp_unit_X untuk referensi
+                            // Tapi saat menyimpan barcode, kita akan gunakan unit.id yang sebenarnya
+                            const displayUnitId = unit.id || `temp_unit_${unitIndex}`;
+                            const key = `${distId}_${displayUnitId}`;
+                            // Untuk menyimpan, kita perlu unit.id yang sebenarnya atau index untuk referensi
+                            const saveUnitId = unit.id || `temp_unit_${unitIndex}`;
+                            
+                            // Ambil barcode untuk kombinasi ini
+                            // Untuk create baru, gunakan unitId (temp_unit_0, temp_unit_1, dll); untuk edit, gunakan id
+                            const barcodesForThisCombo = (dist.barcodes || []).filter(b => {
+                              const bUnitId = typeof b === 'object' ? (b?.unitId || b?.unit?.id) : null;
+                              
+                              // Pastikan kita membandingkan dengan benar
+                              if (unit.id) {
+                                // Mode edit: match dengan id database (pastikan tipe data sama)
+                                return String(bUnitId) === String(unit.id);
+                              } else {
+                                // Mode create: match dengan unitId yang sudah dibuat (temp_unit_0, temp_unit_1, dll)
+                                // displayUnitId sudah dibuat di atas sebagai: unit.id || `temp_unit_${unitIndex}`
+                                return String(bUnitId) === String(displayUnitId);
+                              }
+                            });
+                            
+                            return (
+                              <div key={displayUnitId} className="p-2 bg-white border border-gray-200 rounded">
+                                <label className="text-xs font-medium text-gray-700 mb-1 block">
+                                  Barcode untuk satuan: <span className="font-semibold">{unit.name}</span>
+                                </label>
+                                
+                                {/* Tampilkan barcode yang sudah ada */}
+                                <div className="flex flex-wrap gap-1 my-2 p-2 border rounded bg-gray-50 min-h-[38px]">
+                                  {barcodesForThisCombo.map((b, bIndex) => {
+                                    const barcodeValue = typeof b === 'string' ? b : (b?.barcode || b);
+                                    return (
+                                      <span key={bIndex} className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded flex items-center gap-1">
+                                        {barcodeValue}
+                                        <button 
+                                          type="button" 
+                                          onClick={() => handleRemoveBarcode(distId, saveUnitId, barcodeValue)} 
+                                          className="text-red-500 hover:text-red-700"
+                                        >
+                                          &times;
+                                        </button>
+                                      </span>
+                                    );
+                                  })}
+                                  {barcodesForThisCombo.length === 0 && (
+                                    <span className="text-xs text-gray-500 italic">Belum ada barcode</span>
+                                  )}
+                                </div>
+                                
+                                {/* Input barcode baru */}
+                                <div className="flex gap-2">
+                                  <input 
+                                    type="text" 
+                                    placeholder={`Scan/Input barcode untuk ${distributor.name} - ${unit.name}...`}
+                                    value={newBarcodes[key] || ''}
+                                    onChange={(e) => handleNewBarcodeChange(distId, displayUnitId, e.target.value)}
+                                    onKeyPress={(e) => { 
+                                      if(e.key === 'Enter') { 
+                                        e.preventDefault(); 
+                                        handleAddBarcode(distId, saveUnitId); 
+                                      }
+                                    }}
+                                    className="flex-1 p-2 border border-gray-300 rounded-lg text-sm"
+                                  />
+                                  <button 
+                                    type="button" 
+                                    onClick={() => handleAddBarcode(distId, saveUnitId)} 
+                                    className="px-4 bg-blue-500 text-white text-sm font-bold py-2 rounded hover:bg-blue-600"
+                                  >
+                                    + Tambah
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
           
           {/* Tombol Aksi */}

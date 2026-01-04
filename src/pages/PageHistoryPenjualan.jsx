@@ -104,13 +104,13 @@ function PageHistoryPenjualan() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                      transaction.type === 'LUNAS' 
+                      (transaction.type === 'LUNAS' || (typeof transaction.type === 'object' && transaction.type?.code === 'LUNAS'))
                         ? 'bg-green-100 text-green-800' 
-                        : transaction.type === 'BON'
+                        : (transaction.type === 'BON' || (typeof transaction.type === 'object' && transaction.type?.code === 'BON'))
                         ? 'bg-red-100 text-red-800'
                         : 'bg-yellow-100 text-yellow-800'
                     }`}>
-                      {transaction.type}
+                      {typeof transaction.type === 'object' ? transaction.type.code : transaction.type}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">

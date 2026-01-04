@@ -420,10 +420,21 @@ function PagePesanan() {
 
                   return (
                     <div key={product.id} className="border border-gray-200 p-4 rounded-lg">
-                      <p className="font-bold text-lg">{product.name}</p>
-                      <p className="text-sm font-medium text-red-600">
-                        Sisa Stok: {formatStockDisplay(product, product.stock)} (Min: {product.minStock})
-                      </p>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="font-bold text-lg">{product.name}</p>
+                        {product.isDefaultSupplier && (
+                          <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded">
+                            Supplier Utama
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm space-y-1">
+                        <p className="font-medium text-red-600">
+                          Stok dari Supplier: {formatStockDisplay(product, product.stockFromSupplier || 0)} | 
+                          Stok Total: {formatStockDisplay(product, product.totalStock || product.stock)} | 
+                          Min: {product.minStock}
+                        </p>
+                      </div>
                       <div className="mt-2 flex gap-2">
                         <input 
                           type="number"

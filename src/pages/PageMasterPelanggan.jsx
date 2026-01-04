@@ -207,7 +207,7 @@ function PageMasterPelanggan() {
                     />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">{customer.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">{customer.type}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">{typeof customer.type === 'object' ? customer.type.name || customer.type.code : customer.type}</td>
                   <td className="px-6 py-4 text-sm text-gray-500">{customer.address || '-'}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">{customer.phone || '-'}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">{Number(customer.debt || 0).toLocaleString('id-ID')}</td>
@@ -230,20 +230,28 @@ function PageMasterPelanggan() {
                         <ChatBubbleLeftRightIcon className="w-5 h-5" />
                       </button>
                     )}
-                    <button 
-                      onClick={() => setModalState(customer)} 
-                      className="text-yellow-500 hover:text-yellow-700"
-                      title="Edit"
-                    >
-                      <PencilIcon className="w-5 h-5" />
-                    </button>
-                    <button 
-                      onClick={() => setCustomerToDelete(customer)} 
-                      className="text-red-500 hover:text-red-700"
-                      title="Hapus"
-                    >
-                      <TrashIcon className="w-5 h-5" />
-                    </button>
+                    {customer.name !== 'Pelanggan Umum' ? (
+                      <>
+                        <button 
+                          onClick={() => setModalState(customer)} 
+                          className="text-yellow-500 hover:text-yellow-700"
+                          title="Edit"
+                        >
+                          <PencilIcon className="w-5 h-5" />
+                        </button>
+                        <button 
+                          onClick={() => setCustomerToDelete(customer)} 
+                          className="text-red-500 hover:text-red-700"
+                          title="Hapus"
+                        >
+                          <TrashIcon className="w-5 h-5" />
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-xs text-gray-400 italic" title="Pelanggan Umum adalah default customer dan tidak bisa diubah atau dihapus">
+                        Default
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))

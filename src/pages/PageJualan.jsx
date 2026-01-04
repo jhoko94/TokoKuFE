@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { useStore } from '../context/StoreContext'; // Hook state global kita
 import { formatRupiah, findProductByBarcode } from '../utils/formatters'; // Utilitas
+import { getCustomerType, canCustomerBon } from '../utils/normalize';
 // Impor modal Anda
 import ModalAddProduct from '../components/modals/ModalAddProduct';
 import ModalPrintStruk from '../components/modals/ModalPrintStruk'; 
 
 function PageJualan() {
   // 1. Ambil state global (Read-only)
-  const { customers, products, processTransaction, showToast, payDebt, getTransactionByInvoice } = useStore();
+  const { customers, products, processTransaction, showToast, payDebt, getTransactionByInvoice, apiFetch } = useStore();
   
   // 2. State Lokal (Spesifik untuk halaman ini)
   const [cart, setCart] = useState([]);
@@ -24,11 +25,23 @@ function PageJualan() {
   const barcodeInputRef = useRef(null);
 
   // Set default customer saat customers loaded
+  // Prioritas: "Pelanggan Umum" (nama) > customer dengan type UMUM > customer pertama
   useEffect(() => {
     if (customers.length > 0 && !currentCustomer) {
-      // Cari customer dengan type UMUM atau ambil yang pertama
-      const umumCustomer = customers.find(c => c.type === 'UMUM') || customers[0];
-      setCurrentCustomer(umumCustomer?.id || null);
+      // Prioritas 1: Cari customer dengan nama "Pelanggan Umum"
+      let defaultCustomer = customers.find(c => c.name === 'Pelanggan Umum');
+      
+      // Prioritas 2: Jika tidak ada, cari customer dengan type UMUM
+      if (!defaultCustomer) {
+        defaultCustomer = customers.find(c => getCustomerType(c) === 'UMUM');
+      }
+      
+      // Prioritas 3: Jika masih tidak ada, ambil customer pertama
+      if (!defaultCustomer) {
+        defaultCustomer = customers[0];
+      }
+      
+      setCurrentCustomer(defaultCustomer?.id || null);
     }
   }, [customers, currentCustomer]);
 
@@ -42,7 +55,7 @@ function PageJualan() {
   const discountNum = parseFloat(discount) || 0;
   const cartTotal = Math.max(0, subtotal - discountNum); // Total setelah diskon
   const selectedCustomer = customers.find(c => c.id === currentCustomer);
-  const isBonAllowed = selectedCustomer?.type !== 'UMUM';
+  const isBonAllowed = canCustomerBon(selectedCustomer);
   
   // Hitung kembalian dan kekurangan
   const uangBayarNum = parseFloat(uangBayar) || 0;
@@ -52,7 +65,7 @@ function PageJualan() {
   const hasUangBayar = uangBayarNum > 0;
 
   // 4. Event Handlers (Menggantikan fungsi JS lama)
-  const handleScan = (e) => {
+  const handleScan = async (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       const barcode = e.target.value.trim();
@@ -60,31 +73,51 @@ function PageJualan() {
       
       if (!barcode) return;
       
-      const result = findProductByBarcode(barcode, products);
-      if (result) {
-        handleAddToCart(result.product, result.unit, true); // true = dari scan barcode
-        e.target.value = '';
-        // Focus kembali ke input untuk scan berikutnya
-        if (barcodeInputRef.current) {
-          barcodeInputRef.current.focus();
+      try {
+        // Panggil API untuk cari produk berdasarkan barcode
+        const result = await apiFetch(`/products/by-barcode/${barcode}`);
+        
+        // result berisi: product, unit, distributorId, stockFromSupplier
+        if (result.stockFromSupplier > 0) {
+          handleAddToCart(
+            result.product, 
+            result.unit, 
+            result.distributorId, // Supplier yang terikat dengan barcode
+            true // dari scan
+          );
+          e.target.value = '';
+          // Focus kembali ke input untuk scan berikutnya
+          if (barcodeInputRef.current) {
+            barcodeInputRef.current.focus();
+          }
+        } else {
+          setScanError(`Stok dari supplier tidak tersedia!`);
+          setTimeout(() => setScanError(null), 3000);
         }
-      } else {
+      } catch (error) {
         setScanError('Barcode tidak ditemukan!');
         setTimeout(() => setScanError(null), 3000);
       }
     }
   };
 
-  const handleAddToCart = (product, unit, fromScan = false) => {
-    // Cek stok tersedia
+  const handleAddToCart = (product, unit, distributorId, fromScan = false) => {
+    // Cek stok tersedia dari supplier yang dipilih
     const stockNeeded = 1 * unit.conversion; // 1 item dari unit ini
-    const currentStock = product.stock || 0;
     
-    // Cek apakah sudah ada di cart
-    const existingItem = cart.find(item => item.id === product.id && item.unitName === unit.name);
+    // Cek apakah sudah ada di cart (dengan distributorId yang sama)
+    const existingItem = cart.find(
+      item => item.id === product.id && 
+      item.unitName === unit.name && 
+      item.distributorId === distributorId
+    );
     const currentQty = existingItem ? existingItem.qty : 0;
     const totalStockNeeded = (currentQty + 1) * unit.conversion;
     
+    // TODO: Validasi stok dari supplier (bisa fetch dari API atau dari state)
+    // Untuk sekarang, validasi akan dilakukan di backend saat proses transaksi
+    // Kita hanya cek stok total sebagai validasi awal
+    const currentStock = product.stock || 0;
     if (currentStock < totalStockNeeded) {
       const availableStock = Math.floor(currentStock / unit.conversion);
       const errorMessage = `Stok ${product.name} tidak cukup! Stok tersedia: ${availableStock} ${unit.name}`;
@@ -101,23 +134,25 @@ function PageJualan() {
     }
     
     setCart(currentCart => {
-      const existingItem = currentCart.find(item => item.id === product.id && item.unitName === unit.name);
       if (existingItem) {
         // Update Qty
         return currentCart.map(item => 
-          item.id === product.id && item.unitName === unit.name
+          item.id === product.id && 
+          item.unitName === unit.name && 
+          item.distributorId === distributorId
             ? { ...item, qty: item.qty + 1 }
             : item
         );
       } else {
-        // Tambah baru
+        // Tambah baru dengan distributorId
         return [...currentCart, {
           id: product.id,
           name: product.name,
           unitName: unit.name,
           price: unit.price,
           conversion: unit.conversion,
-          qty: 1
+          qty: 1,
+          distributorId: distributorId // TAMBAHAN: supplier yang terikat
         }];
       }
     });
@@ -259,7 +294,7 @@ function PageJualan() {
       setDiscount('');
       setNote('');
       setUseChangeForDebt(false);
-      const umumCustomer = customers.find(c => c.type === 'UMUM') || customers[0];
+      const umumCustomer = customers.find(c => getCustomerType(c) === 'UMUM') || customers[0];
       setCurrentCustomer(umumCustomer?.id || null);
       // Focus kembali ke barcode scanner
       if (barcodeInputRef.current) {
@@ -341,7 +376,7 @@ function PageJualan() {
       setUangBayar('');
       setDiscount('');
       setNote('');
-      const umumCustomer = customers.find(c => c.type === 'UMUM') || customers[0];
+      const umumCustomer = customers.find(c => getCustomerType(c) === 'UMUM') || customers[0];
       setCurrentCustomer(umumCustomer?.id || null);
       // Focus kembali ke barcode scanner
       if (barcodeInputRef.current) {
@@ -443,7 +478,7 @@ function PageJualan() {
                 >
                   {customers.map(cust => (
                     <option key={cust.id} value={cust.id}>
-                      {cust.name} ({cust.type})
+                      {cust.name} ({getCustomerType(cust) || cust.type})
                       {cust.debt > 0 && ` - Utang: ${formatRupiah(Number(cust.debt))}`}
                     </option>
                   ))}

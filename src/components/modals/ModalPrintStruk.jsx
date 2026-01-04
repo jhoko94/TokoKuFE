@@ -265,7 +265,7 @@ function ModalPrintStruk({ isOpen, onClose, transaction }) {
                 <span>TOTAL:</span>
                 <span>{formatRupiah(transaction.total)}</span>
               </div>
-              {transaction.type === 'LUNAS' && (
+              {(transaction.type === 'LUNAS' || (typeof transaction.type === 'object' && transaction.type?.code === 'LUNAS')) && (
                 <>
                   <div className="flex justify-between mt-2">
                     <span>Tunai:</span>
@@ -285,7 +285,7 @@ function ModalPrintStruk({ isOpen, onClose, transaction }) {
                   )}
                 </>
               )}
-              {transaction.type === 'BON' && (
+              {(transaction.type === 'BON' || (typeof transaction.type === 'object' && transaction.type?.code === 'BON')) && (
                 <>
                   <div className="flex justify-between mt-2 text-red-600">
                     <span>Status:</span>

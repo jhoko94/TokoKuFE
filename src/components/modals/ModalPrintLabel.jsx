@@ -1,11 +1,104 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { XMarkIcon, PrinterIcon } from '@heroicons/react/24/outline';
 import { formatRupiah } from '../../utils/formatters';
 
 function ModalPrintLabel({ isOpen, onClose, product, unit }) {
   const [qty, setQty] = useState(1);
   const [showPrice, setShowPrice] = useState(true);
+  const [selectedDistributorId, setSelectedDistributorId] = useState('');
+  const [selectedBarcode, setSelectedBarcode] = useState('');
   const printRef = useRef(null);
+
+  // Pilih distributor default (supplier utama atau distributor pertama)
+  const defaultDistributor = product?.distributors?.find(d => d.isDefault) || product?.distributors?.[0];
+  const defaultDistributorId = defaultDistributor?.distributorId || defaultDistributor?.distributor?.id || defaultDistributor?.id;
+
+  // Update selectedDistributorId saat product berubah
+  useEffect(() => {
+    if (isOpen && product && defaultDistributorId) {
+      setSelectedDistributorId(defaultDistributorId);
+    }
+  }, [isOpen, product, defaultDistributorId]);
+
+  // Update selectedBarcode saat distributor atau barcodes berubah
+  useEffect(() => {
+    if (isOpen && selectedDistributorId && unit && product) {
+      // Get barcodes untuk kombinasi distributor + unit yang dipilih
+      let barcodes = [];
+      if (product?.distributors && selectedDistributorId) {
+        const distributor = product.distributors.find(d => {
+          const distId = d.distributorId || d.distributor?.id || d.id;
+          return distId === selectedDistributorId;
+        });
+        
+        if (distributor) {
+          // Filter barcode untuk unit yang dipilih
+          const filteredBarcodes = (distributor.barcodes || []).filter(b => {
+            const bUnitId = typeof b === 'object' ? (b?.unitId || b?.unit?.id) : null;
+            return bUnitId === unit.id || (!bUnitId && unit.conversion === 1);
+          });
+          
+          barcodes = filteredBarcodes.map(b => {
+            return typeof b === 'string' ? b : (b?.barcode || b);
+          }).filter(b => b);
+        }
+      }
+      
+      // Fallback: cek unit.barcodes langsung (untuk backward compatibility)
+      if (barcodes.length === 0 && unit.barcodes && unit.barcodes.length > 0) {
+        barcodes = unit.barcodes.map(b => {
+          return typeof b === 'string' ? b : (b?.barcode || b);
+        }).filter(b => b);
+      }
+      
+      if (barcodes.length > 0) {
+        // Jika barcode yang dipilih masih ada di list, tetap pakai itu
+        // Jika tidak, pakai barcode pertama
+        const currentBarcode = selectedBarcode;
+        if (!currentBarcode || !barcodes.includes(currentBarcode)) {
+          setSelectedBarcode(barcodes[0]);
+        }
+      } else {
+        setSelectedBarcode('');
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, selectedDistributorId, unit?.id, product?.id]);
+
+  // Get semua barcode untuk kombinasi distributor + unit yang dipilih
+  const getBarcodesForCombo = () => {
+    if (!product?.distributors || !selectedDistributorId || !unit) return [];
+    
+    const distributor = product.distributors.find(d => {
+      const distId = d.distributorId || d.distributor?.id || d.id;
+      return distId === selectedDistributorId;
+    });
+    
+    if (!distributor) return [];
+    
+    // Filter barcode untuk unit yang dipilih
+    const barcodes = (distributor.barcodes || []).filter(b => {
+      const bUnitId = typeof b === 'object' ? (b?.unitId || b?.unit?.id) : null;
+      return bUnitId === unit.id || (!bUnitId && unit.conversion === 1); // Fallback untuk backward compatibility
+    });
+    
+    // Extract barcode values
+    const barcodeValues = barcodes.map(b => {
+      return typeof b === 'string' ? b : (b?.barcode || b);
+    }).filter(b => b); // Filter out null/undefined
+    
+    // Fallback: cek unit.barcodes langsung (untuk backward compatibility)
+    if (barcodeValues.length === 0 && unit.barcodes && unit.barcodes.length > 0) {
+      return unit.barcodes.map(b => {
+        return typeof b === 'string' ? b : (b?.barcode || b);
+      }).filter(b => b);
+    }
+    
+    return barcodeValues;
+  };
+
+  const availableBarcodes = getBarcodesForCombo();
+  const barcodeValue = selectedBarcode || availableBarcodes[0] || null;
 
   if (!isOpen || !product || !unit) return null;
 
@@ -76,9 +169,9 @@ function ModalPrintLabel({ isOpen, onClose, product, unit }) {
           ${Array(qty).fill(0).map(() => `
             <div class="label">
               <div class="product-name">${product.name}</div>
-              ${unit.barcodes && unit.barcodes.length > 0 ? `
+              ${barcodeValue ? `
                 <div class="barcode-container">
-                  <img src="https://barcode.tec-it.com/barcode.ashx?data=${unit.barcodes[0]}&code=Code128&dpi=96" 
+                  <img src="https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(barcodeValue)}&code=Code128&dpi=96" 
                        alt="Barcode" class="barcode" />
                 </div>
               ` : ''}
@@ -118,6 +211,72 @@ function ModalPrintLabel({ isOpen, onClose, product, unit }) {
             </div>
           </div>
 
+          {/* Pilih Distributor jika ada banyak distributor */}
+          {product.distributors && product.distributors.length > 1 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Distributor (untuk barcode)
+              </label>
+              <select
+                value={selectedDistributorId}
+                onChange={(e) => setSelectedDistributorId(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-lg bg-white"
+              >
+                {product.distributors.map(dist => {
+                  const distId = dist.distributorId || dist.distributor?.id || dist.id;
+                  const distName = dist.distributor?.name || dist.distributor?.name || 'N/A';
+                  return (
+                    <option key={distId} value={distId}>
+                      {distName} {dist.isDefault ? '(Supplier Utama)' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
+
+          {/* Pilih Barcode jika ada banyak barcode */}
+          {availableBarcodes.length > 1 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Pilih Barcode <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={selectedBarcode}
+                onChange={(e) => setSelectedBarcode(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-lg bg-white"
+                required
+              >
+                {availableBarcodes.map((barcode, index) => (
+                  <option key={index} value={barcode}>
+                    {barcode}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Tersedia {availableBarcodes.length} barcode untuk kombinasi distributor dan satuan ini
+              </p>
+            </div>
+          )}
+
+          {/* Info jika hanya ada 1 barcode */}
+          {availableBarcodes.length === 1 && (
+            <div className="p-2 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-xs text-blue-700">
+                Barcode yang akan digunakan: <span className="font-semibold">{availableBarcodes[0]}</span>
+              </p>
+            </div>
+          )}
+
+          {/* Warning jika tidak ada barcode */}
+          {availableBarcodes.length === 0 && (
+            <div className="p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-xs text-yellow-700">
+                ⚠️ Tidak ada barcode untuk kombinasi distributor dan satuan ini. Label akan dicetak tanpa barcode.
+              </p>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Jumlah Label
@@ -150,12 +309,16 @@ function ModalPrintLabel({ isOpen, onClose, product, unit }) {
             <div className="text-sm font-medium text-gray-700 mb-2">Preview:</div>
             <div ref={printRef} className="bg-white p-3 border border-gray-200 rounded">
               <div className="text-center font-bold text-sm mb-2">{product.name}</div>
-              {unit.barcodes && unit.barcodes.length > 0 ? (
+              {barcodeValue ? (
                 <div className="text-center mb-2">
                   <img 
-                    src={`https://barcode.tec-it.com/barcode.ashx?data=${unit.barcodes[0]}&code=Code128&dpi=96`}
+                    src={`https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(barcodeValue)}&code=Code128&dpi=96`}
                     alt="Barcode"
                     className="max-w-full h-auto"
+                    onError={(e) => {
+                      e.target.src = '';
+                      e.target.alt = 'Gagal memuat barcode';
+                    }}
                   />
                 </div>
               ) : (

@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { UserCircleIcon, PencilIcon, KeyIcon, ShieldCheckIcon, BuildingStorefrontIcon } from '@heroicons/react/24/outline';
 import ModalKonfirmasi from '../components/modals/ModalKonfirmasi';
+import { getUserRole } from '../utils/normalize';
 
 function PageProfile() {
   const { user, showToast, updateProfile, changePassword, getStore, updateStore } = useStore();
   
   // Cek apakah user adalah ADMIN atau MANAGER (untuk edit toko)
-  const isAdminOrManager = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  const userRole = getUserRole(user);
+  const isAdminOrManager = userRole === 'ADMIN' || userRole === 'MANAGER';
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isEditingStore, setIsEditingStore] = useState(false);
@@ -298,13 +300,13 @@ function PageProfile() {
                 <h3 className="text-lg sm:text-xl font-bold text-gray-900">{user.name || 'N/A'}</h3>
                 <p className="text-sm sm:text-base text-gray-600">{user.username || 'N/A'}</p>
                 <span className={`inline-block mt-2 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold ${
-                  user.role === 'ADMIN' 
+                  userRole === 'ADMIN' 
                     ? 'bg-purple-100 text-purple-800' 
-                    : user.role === 'MANAGER'
+                    : userRole === 'MANAGER'
                     ? 'bg-purple-100 text-purple-800'
                     : 'bg-gray-100 text-gray-800'
                 }`}>
-                  {user.role || 'USER'}
+                  {userRole || 'USER'}
                 </span>
               </div>
             </div>
@@ -334,7 +336,7 @@ function PageProfile() {
                 </div>
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-gray-500 mb-1">Role</label>
-                  <p className="text-sm sm:text-base text-gray-900">{user.role || '-'}</p>
+                  <p className="text-sm sm:text-base text-gray-900">{userRole || '-'}</p>
                 </div>
               </div>
             </div>

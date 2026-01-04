@@ -10,11 +10,12 @@ import ModalPrintLabel from '../components/modals/ModalPrintLabel';
 import ModalBarcodeGenerator from '../components/modals/ModalBarcodeGenerator';
 import ModalUbahDistributor from '../components/modals/ModalUbahDistributor';
 import ModalUbahSatuan from '../components/modals/ModalUbahSatuan';
+import ModalUbahMinStock from '../components/modals/ModalUbahMinStock';
 import Pagination from '../components/Pagination';
 
 function PageMasterBarang() {
   // 1. Ambil fungsi dari store
-  const { deleteProduct, fetchProductsPaginated, products: allProducts, exportProducts, distributors, bulkUpdateDistributor, bulkUpdateUnit, saveProduct, init } = useStore();
+  const { deleteProduct, fetchProductsPaginated, products: allProducts, exportProducts, distributors, bulkUpdateDistributor, bulkUpdateUnit, bulkUpdateMinStock, saveProduct, init } = useStore();
   
   // 2. State Lokal
   const [searchTerm, setSearchTerm] = useState('');
@@ -32,6 +33,7 @@ function PageMasterBarang() {
   const [isUbahDistributorModalOpen, setIsUbahDistributorModalOpen] = useState(false);
   const [isUbahSatuanModalOpen, setIsUbahSatuanModalOpen] = useState(false);
   const [ubahSatuanType, setUbahSatuanType] = useState(null); // 'small' atau 'large'
+  const [isUbahMinStockModalOpen, setIsUbahMinStockModalOpen] = useState(false);
   
   // State untuk mengontrol modal:
   // 'null' = modal tertutup
@@ -249,6 +251,27 @@ function PageMasterBarang() {
     }
   };
 
+  // Handle bulk update min stock
+  const handleBulkUpdateMinStock = async (minStock) => {
+    try {
+      await bulkUpdateMinStock(Array.from(selectedProducts), minStock);
+      setSelectedProducts(new Set());
+      // Reload data setelah update
+      const response = await fetchProductsPaginated(
+        currentPage, 
+        itemsPerPage, 
+        searchTerm,
+        filterSatuanKecil,
+        filterSatuanBesar,
+        filterDistributor
+      );
+      setProducts(response.data);
+      setPagination(response.pagination);
+    } catch (error) {
+      // Error sudah ditangani di bulkUpdateMinStock
+    }
+  };
+
   // Handle open ubah satuan modal
   const handleOpenUbahSatuan = (type) => {
     setUbahSatuanType(type);
@@ -364,6 +387,12 @@ function PageMasterBarang() {
               >
                 <span>Ubah Satuan Besar</span>
               </button>
+              <button
+                onClick={() => setIsUbahMinStockModalOpen(true)}
+                className="bg-orange-600 text-white font-bold py-2 px-4 rounded-lg shadow hover:bg-orange-700 flex items-center space-x-2"
+              >
+                <span>Ubah Minimal Stok</span>
+              </button>
             </div>
           </div>
         )}
@@ -386,7 +415,6 @@ function PageMasterBarang() {
                       </th>
                       <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Kode Barang</th>
                       <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nama Barang</th>
-                      <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Distributor</th>
                       <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">Satuan Kecil</th>
                       <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">Satuan Besar</th>
                       <th scope="col" className="relative px-3 sm:px-6 py-3"><span className="sr-only">Aksi</span></th>
@@ -395,13 +423,13 @@ function PageMasterBarang() {
                   <tbody id="master-inventory-list" className="bg-white divide-y divide-gray-200">
                     {isLoading ? (
                       <tr>
-                        <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
+                        <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
                           Memuat data...
                         </td>
                       </tr>
                     ) : products.length === 0 ? (
                       <tr>
-                        <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
+                        <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
                           {searchTerm ? 'Tidak ada produk yang sesuai dengan pencarian' : 'Belum ada produk'}
                         </td>
                       </tr>
@@ -435,7 +463,6 @@ function PageMasterBarang() {
                             <div className="font-medium">{product.name}</div>
                             <div className="text-xs text-gray-500 sm:hidden mt-1">Kode: {product.sku}</div>
                           </td>
-                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">{product.distributor?.name || 'N/A'}</td>
                           <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">{satuanKecil.name}</td>
                           <td className="px-3 sm:px-6 py-4 text-sm text-gray-500 hidden lg:table-cell">
                             <div className="max-w-xs truncate" title={satuanBesarString}>
@@ -617,27 +644,45 @@ function PageMasterBarang() {
           onClose={() => setBarcodeGenState(null)}
           product={barcodeGenState.product}
           unit={barcodeGenState.unit}
-          onBarcodeGenerated={async (barcodeValue, barcodeType) => {
-            // Update barcode di unit
+          onBarcodeGenerated={async (barcodeValue, barcodeType, distributorId) => {
+            // Barcode sekarang terikat dengan distributor, jadi kita perlu update melalui saveProduct
             const product = barcodeGenState.product;
             const unit = barcodeGenState.unit;
             
-            // Cari unit di product dan update barcodes
-            const updatedUnits = product.units.map(u => {
-              if (u.id === unit.id) {
-                const newBarcodes = [...(u.barcodes || [])];
-                if (!newBarcodes.includes(barcodeValue)) {
-                  newBarcodes.push(barcodeValue);
+            // Gunakan distributor default jika tidak ada distributorId yang dipilih
+            const targetDistributorId = distributorId || (product.distributors?.find(d => d.isDefault)?.distributorId || product.distributors?.[0]?.distributorId);
+            
+            if (!targetDistributorId) {
+              alert('Produk ini belum memiliki distributor. Silakan tambahkan distributor terlebih dahulu.');
+              return;
+            }
+
+            // Update product dengan menambahkan barcode ke distributor yang sesuai
+            const updatedDistributors = (product.distributors || []).map(dist => {
+              const distId = dist.distributorId || dist.distributor?.id || dist.id;
+              if (distId === targetDistributorId) {
+                // Tambahkan barcode ke distributor ini untuk unit yang dipilih
+                const existingBarcodes = dist.barcodes || [];
+                const barcodeExists = existingBarcodes.some(b => {
+                  const bValue = typeof b === 'string' ? b : (b?.barcode || b);
+                  const bUnitId = typeof b === 'object' ? (b?.unitId || b?.unit?.id) : null;
+                  return bValue === barcodeValue && bUnitId === unit.id;
+                });
+                
+                if (!barcodeExists) {
+                  return {
+                    ...dist,
+                    barcodes: [...existingBarcodes, { barcode: barcodeValue, unitId: unit.id }]
+                  };
                 }
-                return { ...u, barcodes: newBarcodes };
               }
-              return u;
+              return dist;
             });
 
-            // Update product dengan units yang baru
+            // Update product dengan distributors yang baru
             const updatedProduct = {
               ...product,
-              units: updatedUnits
+              distributors: updatedDistributors
             };
 
             // Save ke backend
@@ -649,6 +694,46 @@ function PageMasterBarang() {
               setPagination(response.pagination);
             } catch (error) {
               console.error("Gagal menyimpan barcode:", error);
+            }
+          }}
+          onBarcodeDeleted={async (barcodeValue, distributorId, unitId) => {
+            // Hapus barcode dari distributor
+            const product = barcodeGenState.product;
+            
+            // Update product dengan menghapus barcode dari distributor yang sesuai
+            const updatedDistributors = (product.distributors || []).map(dist => {
+              const distId = dist.distributorId || dist.distributor?.id || dist.id;
+              if (distId === distributorId) {
+                // Hapus barcode dari distributor ini
+                const filteredBarcodes = (dist.barcodes || []).filter(b => {
+                  const bValue = typeof b === 'string' ? b : (b?.barcode || b);
+                  const bUnitId = typeof b === 'object' ? (b?.unitId || b?.unit?.id) : null;
+                  return !(bValue === barcodeValue && bUnitId === unitId);
+                });
+                
+                return {
+                  ...dist,
+                  barcodes: filteredBarcodes
+                };
+              }
+              return dist;
+            });
+
+            // Update product dengan distributors yang baru
+            const updatedProduct = {
+              ...product,
+              distributors: updatedDistributors
+            };
+
+            // Save ke backend
+            try {
+              await saveProduct(updatedProduct);
+              // Reload data
+              const response = await fetchProductsPaginated(currentPage, itemsPerPage, searchTerm, filterSatuanKecil, filterSatuanBesar, filterDistributor);
+              setProducts(response.data);
+              setPagination(response.pagination);
+            } catch (error) {
+              console.error("Gagal menghapus barcode:", error);
             }
           }}
         />
@@ -676,6 +761,16 @@ function PageMasterBarang() {
           unitType={ubahSatuanType}
           selectedCount={selectedProducts.size}
           onConfirm={handleBulkUpdateSatuan}
+        />
+      )}
+
+      {/* Modal Ubah Minimal Stok */}
+      {isUbahMinStockModalOpen && (
+        <ModalUbahMinStock
+          isOpen={isUbahMinStockModalOpen}
+          onClose={() => setIsUbahMinStockModalOpen(false)}
+          selectedCount={selectedProducts.size}
+          onConfirm={handleBulkUpdateMinStock}
         />
       )}
     </>
