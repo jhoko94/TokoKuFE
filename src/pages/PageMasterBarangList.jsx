@@ -191,19 +191,19 @@ function PageMasterBarangList() {
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
                     </th>
-                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Kode Barang
                     </th>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Nama Barang
                     </th>
-                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Satuan
                     </th>
-                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden md:table-cell">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Harga
                     </th>
-                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden md:table-cell">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Distributor
                     </th>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">
@@ -249,20 +249,19 @@ function PageMasterBarangList() {
                               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                             />
                           </td>
-                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 hidden sm:table-cell">
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                             {product.sku}
                           </td>
                           <td className="px-3 sm:px-6 py-4 text-sm text-gray-700">
                             <div className="font-medium">{product.name}</div>
-                            <div className="text-xs text-gray-500 sm:hidden mt-1">Kode: {product.sku}</div>
                           </td>
-                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {satuan.name}
                           </td>
-                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {formatRupiah(satuan.price || 0)}
                           </td>
-                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {product.distributor?.name || 'N/A'}
                           </td>
                           <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
