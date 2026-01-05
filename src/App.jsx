@@ -27,6 +27,7 @@ import PageHelp from "./pages/PageHelp";
 import PageProfile from "./pages/PageProfile";
 import PageUserManagement from "./pages/PageUserManagement";
 import PageRoleMenuManagement from "./pages/PageRoleMenuManagement";
+import PageRoleManagement from "./pages/PageRoleManagement";
 
 function App() {
   return (
@@ -217,6 +218,14 @@ function App() {
               element={
                 <RoleProtectedRoute allowedRoles={['ADMIN']}>
                   <PageRoleMenuManagement />
+                </RoleProtectedRoute>
+              } 
+            />
+            <Route 
+              path="role-management" 
+              element={
+                <RoleProtectedRoute allowedRoles={['ADMIN']}>
+                  <PageRoleManagement />
                 </RoleProtectedRoute>
               } 
             />
