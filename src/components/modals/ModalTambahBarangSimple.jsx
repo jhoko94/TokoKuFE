@@ -764,6 +764,23 @@ export default function ModalTambahBarangSimple({ productToEdit, onClose, onSave
                   <p className="mt-1 text-sm text-red-500">{errors.price}</p>
                 )}
               </div>
+
+              {/* Punya Barcode - untuk mode tambah */}
+              <div className="mb-6">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name="hasBarcode"
+                    checked={formData.hasBarcode}
+                    onChange={handleChange}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Punya Barcode</span>
+                </label>
+                <p className="mt-1 text-xs text-gray-500 ml-6">
+                  Centang jika produk ini memiliki barcode. Barcode dapat ditambahkan nanti saat menerima pesanan barang.
+                </p>
+              </div>
             </>
           )}
 
