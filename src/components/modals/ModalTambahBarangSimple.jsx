@@ -9,6 +9,7 @@ export default function ModalTambahBarangSimple({ productToEdit, onClose, onSave
     unitName: 'Pcs',
     price: '',
     distributorId: '',
+    hasBarcode: false,
   });
   
   const [errors, setErrors] = useState({});
@@ -22,11 +23,13 @@ export default function ModalTambahBarangSimple({ productToEdit, onClose, onSave
       // Ambil distributor default
       const defaultDistributor = productToEdit.distributors?.find(d => d.isDefault) || productToEdit.distributors?.[0];
       
+      // Baca hasBarcode langsung dari unit (disimpan di database)
       setFormData({
         name: productToEdit.name || '',
         unitName: satuan.name || 'Pcs',
         price: satuan.price?.toString() || '0',
         distributorId: defaultDistributor?.distributorId || defaultDistributor?.distributor?.id || '',
+        hasBarcode: satuan.hasBarcode || false,
       });
     } else {
       // Mode TAMBAH: Reset form
@@ -35,13 +38,24 @@ export default function ModalTambahBarangSimple({ productToEdit, onClose, onSave
         unitName: 'Pcs',
         price: '',
         distributorId: '',
+        hasBarcode: false,
       });
       setErrors({});
     }
   }, [productToEdit]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
+    
+    // Untuk checkbox
+    if (type === 'checkbox') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: checked
+      }));
+      return;
+    }
+    
     // Untuk field price, hanya terima angka
     if (name === 'price') {
       // Hapus karakter non-numeric kecuali titik untuk desimal
@@ -149,13 +163,15 @@ export default function ModalTambahBarangSimple({ productToEdit, onClose, onSave
             {
               name: formData.unitName.trim().toUpperCase(),
               price: parseFloat(formData.price) || 0,
-              conversion: 1
+              conversion: 1,
+              hasBarcode: formData.hasBarcode || false
             },
             // Satuan besar (dipertahankan jika ada)
             ...satuanBesar.map(u => ({
               name: u.name,
               price: parseFloat(u.price),
-              conversion: parseInt(u.conversion)
+              conversion: parseInt(u.conversion),
+              hasBarcode: u.hasBarcode || false
             }))
           ]
         };
@@ -179,7 +195,8 @@ export default function ModalTambahBarangSimple({ productToEdit, onClose, onSave
             {
               name: formData.unitName.trim().toUpperCase(),
               price: parseFloat(formData.price) || 0,
-              conversion: 1
+              conversion: 1,
+              hasBarcode: formData.hasBarcode || false
             }
           ]
         };
@@ -272,7 +289,7 @@ export default function ModalTambahBarangSimple({ productToEdit, onClose, onSave
           </div>
 
           {/* Distributor */}
-          <div className="mb-6">
+          <div className="mb-4">
             <label htmlFor="distributorId" className="block text-sm font-medium text-gray-700 mb-2">
               Distributor <span className="text-red-500">*</span>
             </label>
@@ -295,6 +312,23 @@ export default function ModalTambahBarangSimple({ productToEdit, onClose, onSave
             {errors.distributorId && (
               <p className="mt-1 text-sm text-red-500">{errors.distributorId}</p>
             )}
+          </div>
+
+          {/* Punya Barcode */}
+          <div className="mb-6">
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="checkbox"
+                name="hasBarcode"
+                checked={formData.hasBarcode}
+                onChange={handleChange}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-gray-700">Punya Barcode</span>
+            </label>
+            <p className="mt-1 text-xs text-gray-500 ml-6">
+              Centang jika produk ini memiliki barcode. Barcode dapat ditambahkan nanti saat menerima pesanan barang.
+            </p>
           </div>
 
           {/* Action Buttons */}
