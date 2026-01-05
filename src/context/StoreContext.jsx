@@ -325,6 +325,26 @@ export function StoreProvider({ children }) {
       }
     }, []);
 
+    // Fungsi untuk mencari product by exact name match (dengan optional distributorId)
+    const getProductByName = useCallback(async (name, distributorId = null) => {
+      try {
+        const params = new URLSearchParams({ name: name.trim() });
+        if (distributorId) {
+          params.append('distributorId', distributorId);
+        }
+        const response = await apiFetch(`/products/search-by-name?${params.toString()}`);
+        return response;
+      } catch (error) {
+        // Jika 404, berarti produk tidak ditemukan (ini normal)
+        if (error.message && (error.message.includes('404') || error.message.includes('tidak ditemukan'))) {
+          return null;
+        }
+        console.error("Gagal mencari produk:", error);
+        // Return null untuk error lainnya juga, agar tidak crash
+        return null;
+      }
+    }, []);
+
     // Fungsi untuk fetch customers with debt dengan pagination
     const fetchCustomersWithDebtPaginated = useCallback(async (page = 1, limit = 25, search = '') => {
       try {
@@ -1319,6 +1339,7 @@ export function StoreProvider({ children }) {
       processRetur,
       importProducts,
       fetchProductsPaginated, // Fungsi untuk fetch products dengan pagination
+      getProductByName, // Fungsi untuk mencari product by exact name match
       fetchCustomersPaginated, // Fungsi untuk fetch customers dengan pagination
       fetchCustomersWithDebtPaginated, // Fungsi untuk fetch customers dengan pagination
       fetchPOSuggestions, // Fungsi untuk fetch PO suggestions (low stock) dengan pagination

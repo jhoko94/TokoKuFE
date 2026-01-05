@@ -198,9 +198,6 @@ function PageMasterBarangList() {
                       Nama Barang
                     </th>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Satuan
-                    </th>
-                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Harga
                     </th>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -214,20 +211,35 @@ function PageMasterBarangList() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {isLoading ? (
                     <tr>
-                      <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
+                      <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
                         Memuat data...
                       </td>
                     </tr>
                   ) : products.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
+                      <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
                         {searchTerm ? 'Tidak ada produk yang sesuai dengan pencarian' : 'Belum ada produk'}
                       </td>
                     </tr>
                   ) : (
                     products.map(product => {
-                      // Ambil satuan kecil (conversion = 1)
-                      const satuan = product.units?.find(u => u.conversion === 1) || { name: 'N/A', price: 0 };
+                      // Ambil semua satuan dan urutkan (conversion = 1 dulu, lalu yang lain)
+                      const allUnits = product.units || [];
+                      const sortedUnits = [...allUnits].sort((a, b) => {
+                        // Satuan dengan conversion = 1 di depan
+                        if (a.conversion === 1 && b.conversion !== 1) return -1;
+                        if (a.conversion !== 1 && b.conversion === 1) return 1;
+                        // Lalu urutkan berdasarkan conversion
+                        return a.conversion - b.conversion;
+                      });
+                      
+                      // Format satuan untuk ditampilkan (gabungkan semua dengan koma)
+                      const satuanDisplay = sortedUnits.length > 0 
+                        ? sortedUnits.map(u => u.name).join(', ')
+                        : 'N/A';
+                      
+                      // Ambil satuan kecil (conversion = 1) untuk harga
+                      const satuanKecil = sortedUnits.find(u => u.conversion === 1) || sortedUnits[0] || { name: 'N/A', price: 0 };
                           
                       return (
                         <tr key={product.id} className="hover:bg-gray-50">
@@ -255,11 +267,16 @@ function PageMasterBarangList() {
                           <td className="px-3 sm:px-6 py-4 text-sm text-gray-700">
                             <div className="font-medium">{product.name}</div>
                           </td>
-                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {satuan.name}
-                          </td>
-                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {formatRupiah(satuan.price || 0)}
+                          <td className="px-3 sm:px-6 py-4 text-sm text-gray-500">
+                            <div className="flex flex-col gap-0.5">
+                              {sortedUnits.map((unit, idx) => (
+                                <div key={unit.id || idx} className="whitespace-nowrap">
+                                  <span className="text-xs text-gray-400">{unit.name}:</span>{' '}
+                                  <span className="font-medium">{formatRupiah(unit.price || 0)}</span>
+                                </div>
+                              ))}
+                              {sortedUnits.length === 0 && <span>N/A</span>}
+                            </div>
                           </td>
                           <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {product.distributor?.name || 'N/A'}
