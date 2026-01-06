@@ -9,7 +9,6 @@ import PageLogin from "./pages/PageLogin";
 import PageJualan from "./pages/PageJualan";
 import PageUtang from "./pages/PageUtang";
 import PageBarang from "./pages/PageBarang";
-import PageMasterBarang from "./pages/PageMasterBarang";
 import PageMasterBarangList from "./pages/PageMasterBarangList";
 import PageLaporan from "./pages/PageLaporan";
 import PagePesanan from "./pages/PagePesanan";
@@ -46,14 +45,6 @@ function App() {
             </ProtectedRoute>
           }>
             {/* Master Data - Menggunakan permission dari database */}
-            <Route 
-              path="master-barang" 
-              element={
-                <MenuProtectedRoute menuPath="/master-barang">
-                  <PageMasterBarang />
-                </MenuProtectedRoute>
-              } 
-            />
             <Route 
               path="barang-master" 
               element={

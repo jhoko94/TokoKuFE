@@ -428,7 +428,7 @@ function PageHelp() {
               <ShoppingCartIcon className="w-8 h-8 text-blue-600 mb-2" />
               <span className="text-sm font-medium text-gray-700">Penjualan</span>
             </Link>
-            <Link to="/master-barang" className="flex flex-col items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors text-center">
+            <Link to="/barang-master" className="flex flex-col items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors text-center">
               <CubeIcon className="w-8 h-8 text-green-600 mb-2" />
               <span className="text-sm font-medium text-gray-700">Master Barang</span>
             </Link>

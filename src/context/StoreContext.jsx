@@ -506,53 +506,6 @@ export function StoreProvider({ children }) {
       }
     };
 
-    // (PageMasterBarang) - Bulk update distributor
-    const bulkUpdateDistributor = async (productIds, distributorId) => {
-      try {
-        const result = await apiFetch('/products/bulk-update-distributor', {
-          method: 'PUT',
-          body: JSON.stringify({ productIds, distributorId }),
-        });
-        showToast(result.message || `Berhasil mengubah distributor untuk ${result.updatedCount} produk`, 'success');
-        return result;
-      } catch (error) {
-        console.error("Gagal mengubah distributor:", error);
-        showToast(error.message || 'Gagal mengubah distributor', 'error');
-        throw error;
-      }
-    };
-
-    // (PageMasterBarang) - Bulk update satuan kecil/besar
-    const bulkUpdateUnit = async (productIds, unitType, unitName, price, conversion) => {
-      try {
-        const result = await apiFetch('/products/bulk-update-unit', {
-          method: 'PUT',
-          body: JSON.stringify({ productIds, unitType, unitName, price, conversion }),
-        });
-        showToast(result.message || `Berhasil mengubah satuan untuk ${result.updatedCount} produk`, 'success');
-        return result;
-      } catch (error) {
-        console.error("Gagal mengubah satuan:", error);
-        showToast(error.message || 'Gagal mengubah satuan', 'error');
-        throw error;
-      }
-    };
-
-    // (PageMasterBarang) - Bulk update minimal stok
-    const bulkUpdateMinStock = async (productIds, minStock) => {
-      try {
-        const result = await apiFetch('/products/bulk-update-minstock', {
-          method: 'PUT',
-          body: JSON.stringify({ productIds, minStock }),
-        });
-        showToast(result.message || `Berhasil mengubah minimal stok untuk ${result.updatedCount} produk`, 'success');
-        return result;
-      } catch (error) {
-        console.error("Gagal mengubah minimal stok:", error);
-        showToast(error.message || 'Gagal mengubah minimal stok', 'error');
-        throw error;
-      }
-    };
 
     // (PageUtang)
     const payDebt = async (customerId, amount) => {
@@ -1189,34 +1142,6 @@ export function StoreProvider({ children }) {
       }
     };
 
-    const exportProducts = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`${API_URL}/export/products`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-        
-        if (!response.ok) throw new Error('Gagal export');
-        
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `master-barang-${Date.now()}.xlsx`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        
-        showToast('Export berhasil', 'success');
-      } catch (error) {
-        console.error("Gagal export master barang:", error);
-        showToast('Gagal export master barang', 'error');
-        throw error;
-      }
-    };
 
     const exportDebt = async (type = 'customer') => {
       try {
@@ -1325,9 +1250,6 @@ export function StoreProvider({ children }) {
       saveProduct,
       deleteProduct,
       bulkDeleteProducts,
-      bulkUpdateDistributor,
-      bulkUpdateUnit,
-      bulkUpdateMinStock,
       payDebt,
       sendEmailToCustomer,
       bulkSendEmail,
@@ -1367,7 +1289,6 @@ export function StoreProvider({ children }) {
       approveReturPenjualan, // Approve retur penjualan
       rejectReturPenjualan, // Reject retur penjualan
       exportSales, // Export laporan penjualan
-      exportProducts, // Export master barang
       exportDebt, // Export piutang/hutang
       exportStockHistory, // Export kartu stok
       warehouses, // List warehouses
