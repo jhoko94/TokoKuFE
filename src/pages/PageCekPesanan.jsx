@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
-import ModalCekPesanan from '../components/modals/ModalCekPesanan'; // Modal yg akan kita buat
+import ModalPilihUkuranKertas from '../components/modals/ModalPilihUkuranKertas'; // Modal untuk pilih ukuran kertas
 import Pagination from '../components/Pagination';
 import { generatePOPDF } from '../utils/generatePOPDF';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 
 function PageCekPesanan() {
   const { fetchPendingPOsPaginated } = useStore();
+  const navigate = useNavigate();
   
-  // State untuk mengontrol modal: PO mana yang sedang dicek
-  const [poToCek, setPoToCek] = useState(null);
+  // State untuk PO yang akan didownload (untuk modal pilihan ukuran kertas)
+  const [poToDownload, setPoToDownload] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [pendingPOs, setPendingPOs] = useState([]);
@@ -34,20 +36,27 @@ function PageCekPesanan() {
     loadPOs();
   }, [currentPage, itemsPerPage, fetchPendingPOsPaginated]);
 
-  // Handler untuk download PO
-  const handleDownloadPO = async (po) => {
+  // Handler untuk klik tombol Download - tampilkan modal pilihan ukuran kertas
+  const handleDownloadClick = (po) => {
+    setPoToDownload(po);
+  };
+
+  // Handler untuk download PO setelah user memilih ukuran kertas
+  const handleDownloadPO = async (paperSize) => {
+    if (!poToDownload) return;
+    
     try {
       // Format PO Number dari ID
-      const poNumber = po.id ? `PO-${po.id.slice(-8).toUpperCase()}` : `PO-${Date.now()}`;
+      const poNumber = poToDownload.id ? `PO-${poToDownload.id.slice(-8).toUpperCase()}` : `PO-${Date.now()}`;
       
       // Format data untuk PDF
       const poForPDF = {
         id: poNumber,
-        poId: po.id,
-        distributor: po.distributor || {},
-        createdAt: po.createdAt || new Date().toISOString(),
-        status: po.status || 'PENDING',
-        items: (po.items || []).map(item => {
+        poId: poToDownload.id,
+        distributor: poToDownload.distributor || {},
+        createdAt: poToDownload.createdAt || new Date().toISOString(),
+        status: poToDownload.status || 'PENDING',
+        items: (poToDownload.items || []).map(item => {
           // Pastikan product name tersedia
           const productName = item.product?.name || 'N/A';
           return {
@@ -60,10 +69,12 @@ function PageCekPesanan() {
         })
       };
       
-      await generatePOPDF(poForPDF);
+      await generatePOPDF(poForPDF, null, paperSize);
+      setPoToDownload(null); // Tutup modal setelah download
     } catch (error) {
       console.error("Gagal download PO:", error);
       alert(`Gagal download PO: ${error.message}`);
+      setPoToDownload(null); // Tutup modal jika error
     }
   };
 
@@ -114,7 +125,7 @@ function PageCekPesanan() {
                   {/* Tombol Aksi */}
                   <div className="flex flex-col sm:flex-row gap-2 sm:gap-2 w-full sm:w-auto">
                     <button 
-                      onClick={() => handleDownloadPO(po)}
+                      onClick={() => handleDownloadClick(po)}
                       className="flex-1 sm:flex-none bg-green-600 text-white font-bold py-2.5 px-3 sm:px-4 rounded-lg shadow hover:bg-green-700 active:bg-green-800 flex items-center justify-center gap-2 text-sm sm:text-base min-h-[44px] transition-colors"
                       title="Download PO"
                     >
@@ -122,7 +133,7 @@ function PageCekPesanan() {
                       <span>Download</span>
                     </button>
                     <button 
-                      onClick={() => setPoToCek(po)}
+                      onClick={() => navigate(`/konfirmasi-pesanan/${po.id}`)}
                       className="flex-1 sm:flex-none bg-blue-600 text-white font-bold py-2.5 px-3 sm:px-4 rounded-lg shadow hover:bg-blue-700 active:bg-blue-800 text-sm sm:text-base min-h-[44px] transition-colors"
                     >
                       CEK
@@ -152,11 +163,11 @@ function PageCekPesanan() {
         )}
       </div>
 
-      {/* Render Modal (jika poToCek di-set) */}
-      {poToCek && (
-        <ModalCekPesanan
-          po={poToCek}
-          onClose={() => setPoToCek(null)}
+      {/* Render Modal Pilih Ukuran Kertas (jika poToDownload di-set) */}
+      {poToDownload && (
+        <ModalPilihUkuranKertas
+          onConfirm={handleDownloadPO}
+          onCancel={() => setPoToDownload(null)}
         />
       )}
     </>

@@ -256,23 +256,19 @@ function PagePesanan() {
       items: finalOrderList 
     };
     
-    // Buat pesan konfirmasi
-    let poMessage = `PO untuk ${distributor.name}:<br>Mohon siapkan pesanan berikut:<br><br>`;
-    newPO.items.forEach(item => {
-      poMessage += `- ${item.product.name} (${item.qty} ${item.unitName})<br>`;
-    });
-
-    // Buka modal konfirmasi tipe "Konfirmasi & Buat PDF"
+    // Buka modal konfirmasi tipe "Konfirmasi & Buat PDF" dengan tabel
     setModalData({
       title: "Konfirmasi & Buat PDF",
-      message: poMessage,
-      onConfirm: () => proceedToSave(newPO), // Fungsi untuk eksekusi
+      message: null, // Tidak perlu message jika pakai tabel
+      items: finalOrderList, // Kirim items untuk ditampilkan di tabel
+      distributorName: distributor.name,
+      onConfirm: (paperSize) => proceedToSave(newPO, paperSize), // Fungsi untuk eksekusi dengan ukuran kertas
       onCancel: () => setModalData(null) // Tutup modal
     });
   };
 
   // Fungsi async yang dipanggil setelah user klik OK di modal
-  const proceedToSave = async (newPO) => {
+  const proceedToSave = async (newPO, paperSize = 'a4') => {
     if (isSubmitting) return; // Mencegah double-click
     
     // Validasi ulang distributor
@@ -326,8 +322,8 @@ function PagePesanan() {
         items: newPO.items // Tetap gunakan items dengan product data untuk PDF
       };
       
-      // Generate PDF
-      await generatePOPDF(poForPDF);
+      // Generate PDF dengan ukuran kertas yang dipilih
+      await generatePOPDF(poForPDF, null, paperSize);
       
       // 3. Reset halaman
       setSelectedDistributorId('');
@@ -550,6 +546,8 @@ function PagePesanan() {
         <ModalKonfirmasi
           title={modalData.title}
           message={modalData.message}
+          items={modalData.items}
+          distributorName={modalData.distributorName}
           onConfirm={modalData.onConfirm}
           onCancel={modalData.onCancel} // Tombol Batal akan tersembunyi jika onCancel null
         />

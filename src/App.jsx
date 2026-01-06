@@ -14,6 +14,7 @@ import PageMasterBarangList from "./pages/PageMasterBarangList";
 import PageLaporan from "./pages/PageLaporan";
 import PagePesanan from "./pages/PagePesanan";
 import PageCekPesanan from "./pages/PageCekPesanan";
+import PageKonfirmasiPesanan from "./pages/PageKonfirmasiPesanan";
 import PageOpname from "./pages/PageOpname";
 // Halaman baru untuk IPOS5
 import PageMasterPelanggan from "./pages/PageMasterPelanggan";
@@ -118,6 +119,14 @@ function App() {
               element={
                 <MenuProtectedRoute menuPath="/cek-pesanan">
                   <PageCekPesanan />
+                </MenuProtectedRoute>
+              } 
+            />
+            <Route 
+              path="konfirmasi-pesanan/:poId" 
+              element={
+                <MenuProtectedRoute menuPath="/cek-pesanan">
+                  <PageKonfirmasiPesanan />
                 </MenuProtectedRoute>
               } 
             />

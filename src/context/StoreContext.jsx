@@ -746,14 +746,19 @@ export function StoreProvider({ children }) {
     };
 
     // (PageCekPesanan)
-    const confirmPOReceived = async (poToConfirm, newBarcodeData) => {
+    const confirmPOReceived = async (poToConfirm, receivedQtys, newBarcodeData) => {
       try {
         // Pastikan newBarcodeData adalah object (bukan undefined/null)
         const barcodeData = newBarcodeData || {};
+        // Pastikan receivedQtys adalah object (bukan undefined/null)
+        const receivedQtysData = receivedQtys || {};
         
         await apiFetch(`/purchase-orders/${poToConfirm.id}/receive`, {
           method: 'POST',
-          body: JSON.stringify({ newBarcodeData: barcodeData }),
+          body: JSON.stringify({ 
+            receivedQtys: receivedQtysData,
+            newBarcodeData: barcodeData 
+          }),
         });
         
         // BARU: Setelah sukses, kita harus sinkronkan ulang semua data
