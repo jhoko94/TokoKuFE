@@ -10,10 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "papaparse": "^5.4.1",
     "@heroicons/react": "^2.2.0",
+    "jsbarcode": "^3.12.1",
     "jspdf": "^3.0.3",
     "jspdf-autotable": "^5.0.2",
+    "papaparse": "^5.4.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.5"

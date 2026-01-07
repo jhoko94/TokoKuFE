@@ -28,6 +28,8 @@ import PageProfile from "./pages/PageProfile";
 import PageUserManagement from "./pages/PageUserManagement";
 import PageRoleMenuManagement from "./pages/PageRoleMenuManagement";
 import PageRoleManagement from "./pages/PageRoleManagement";
+import PageKelolaBarcode from "./pages/PageKelolaBarcode";
+import PageTambahBarcode from "./pages/PageTambahBarcode";
 
 function App() {
   return (
@@ -66,6 +68,22 @@ function App() {
               element={
                 <MenuProtectedRoute menuPath="/master-supplier">
                   <PageMasterSupplier />
+                </MenuProtectedRoute>
+              } 
+            />
+            <Route 
+              path="kelola-barcode" 
+              element={
+                <MenuProtectedRoute menuPath="/kelola-barcode">
+                  <PageKelolaBarcode />
+                </MenuProtectedRoute>
+              } 
+            />
+            <Route 
+              path="tambah-barcode" 
+              element={
+                <MenuProtectedRoute menuPath="/kelola-barcode">
+                  <PageTambahBarcode />
                 </MenuProtectedRoute>
               } 
             />

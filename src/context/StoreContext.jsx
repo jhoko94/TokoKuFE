@@ -1230,6 +1230,97 @@ export function StoreProvider({ children }) {
       }
     };
 
+    // --- FUNGSI BARCODE ---
+    const fetchBarcodesPaginated = async (page = 1, limit = 25, search = '', productId = '', distributorId = '', unitId = '') => {
+      try {
+        const params = new URLSearchParams({
+          page: page.toString(),
+          limit: limit.toString(),
+        });
+        if (search) params.append('search', search);
+        if (productId) params.append('productId', productId);
+        if (distributorId) params.append('distributorId', distributorId);
+        if (unitId) params.append('unitId', unitId);
+
+        const response = await apiFetch(`/barcodes?${params.toString()}`);
+        return response;
+      } catch (error) {
+        console.error("Gagal mengambil barcode:", error);
+        showToast(error.message || 'Gagal mengambil data barcode', 'error');
+        throw error;
+      }
+    };
+
+    const createBarcode = async (barcodes) => {
+      try {
+        const response = await apiFetch('/barcodes', {
+          method: 'POST',
+          body: JSON.stringify({ barcodes }),
+        });
+        showToast(response.message || 'Barcode berhasil ditambahkan', 'success');
+        return response;
+      } catch (error) {
+        console.error("Gagal menambahkan barcode:", error);
+        showToast(error.message || 'Gagal menambahkan barcode', 'error');
+        throw error;
+      }
+    };
+
+    const updateBarcode = async (id, barcode) => {
+      try {
+        const response = await apiFetch(`/barcodes/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ barcode }),
+        });
+        showToast(response.message || 'Barcode berhasil diupdate', 'success');
+        return response;
+      } catch (error) {
+        console.error("Gagal mengupdate barcode:", error);
+        showToast(error.message || 'Gagal mengupdate barcode', 'error');
+        throw error;
+      }
+    };
+
+    const deleteBarcode = async (id) => {
+      try {
+        await apiFetch(`/barcodes/${id}`, { method: 'DELETE' });
+        showToast('Barcode berhasil dihapus', 'success');
+      } catch (error) {
+        console.error("Gagal menghapus barcode:", error);
+        showToast(error.message || 'Gagal menghapus barcode', 'error');
+        throw error;
+      }
+    };
+
+    const bulkDeleteBarcodes = async (ids) => {
+      try {
+        const response = await apiFetch('/barcodes/bulk', {
+          method: 'DELETE',
+          body: JSON.stringify({ ids }),
+        });
+        showToast(response.message || `Berhasil menghapus ${ids.length} barcode`, 'success');
+        return response;
+      } catch (error) {
+        console.error("Gagal menghapus barcode:", error);
+        showToast(error.message || 'Gagal menghapus barcode', 'error');
+        throw error;
+      }
+    };
+
+    const generateBarcode = async (count = 1) => {
+      try {
+        const response = await apiFetch('/barcodes/generate', {
+          method: 'POST',
+          body: JSON.stringify({ count }),
+        });
+        return response;
+      } catch (error) {
+        console.error("Gagal generate barcode:", error);
+        showToast(error.message || 'Gagal generate barcode', 'error');
+        throw error;
+      }
+    };
+
     // Nilai yang akan dibagikan ke seluruh aplikasi
     const value = {
       customers,
@@ -1298,6 +1389,13 @@ export function StoreProvider({ children }) {
       changePassword, // Change user password
       getStore, // Get store information
       updateStore, // Update store information
+      // Barcode functions
+      fetchBarcodesPaginated, // Fetch barcodes dengan pagination
+      createBarcode, // Tambah barcode baru
+      updateBarcode, // Update barcode
+      deleteBarcode, // Hapus barcode
+      bulkDeleteBarcodes, // Bulk delete barcodes
+      generateBarcode, // Generate barcode random
       apiFetch, // Export apiFetch untuk penggunaan langsung (e.g., scan barcode)
     };
 
