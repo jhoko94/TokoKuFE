@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
-import { TrashIcon, PlusIcon, PencilIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, PlusIcon, PencilIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { formatRupiah } from '../utils/formatters';
 import Pagination from '../components/Pagination';
 import ModalKonfirmasi from '../components/modals/ModalKonfirmasi';
@@ -169,6 +169,32 @@ function PageMasterBarangList() {
         </div>
       )}
 
+      {/* Note tentang Warning Harga */}
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="flex items-start gap-2">
+          <ExclamationTriangleIcon className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-blue-900 mb-2">Catatan Harga:</p>
+            <div className="text-xs text-blue-800 space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1">
+                  <ExclamationTriangleIcon className="w-4 h-4 text-red-600" />
+                  <span className="text-red-600 font-medium">MERAH</span>
+                </span>
+                <span>: Harga jual lebih kecil dari harga beli (RUGI)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1">
+                  <ExclamationTriangleIcon className="w-4 h-4 text-yellow-600" />
+                  <span className="text-yellow-600 font-medium">KUNING</span>
+                </span>
+                <span>: Harga jual sama dengan harga beli (TIDAK ADA UNTUNG)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Tabel Master Barang */}
       <div className="flex flex-col">
         <div className="-my-2 overflow-x-auto -mx-2 sm:-mx-6 lg:-mx-8">
@@ -198,7 +224,10 @@ function PageMasterBarangList() {
                       Nama Barang
                     </th>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Harga
+                      Harga Jual
+                    </th>
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Harga Beli
                     </th>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Distributor
@@ -211,13 +240,13 @@ function PageMasterBarangList() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {isLoading ? (
                     <tr>
-                      <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
+                      <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
                         Memuat data...
                       </td>
                     </tr>
                   ) : products.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
+                      <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
                         {searchTerm ? 'Tidak ada produk yang sesuai dengan pencarian' : 'Belum ada produk'}
                       </td>
                     </tr>
@@ -268,15 +297,98 @@ function PageMasterBarangList() {
                             <div className="font-medium">{product.name}</div>
                           </td>
                           <td className="px-3 sm:px-6 py-4 text-sm text-gray-500">
-                            <div className="flex flex-col gap-0.5">
-                              {sortedUnits.map((unit, idx) => (
-                                <div key={unit.id || idx} className="whitespace-nowrap">
-                                  <span className="text-xs text-gray-400">{unit.name}:</span>{' '}
-                                  <span className="font-medium">{formatRupiah(unit.price || 0)}</span>
+                            {(() => {
+                              // Ambil ProductDistributor default untuk mendapatkan costPrice
+                              const defaultDistributor = product.distributors?.find(d => d.isDefault) || product.distributors?.[0];
+                              const costPrice = defaultDistributor?.costPrice;
+                              
+                              return (
+                                <div className="flex flex-col gap-0.5">
+                                  {sortedUnits.map((unit, idx) => {
+                                    const unitPrice = parseFloat(unit.price || 0);
+                                    const hasCostPrice = costPrice && costPrice > 0;
+                                    const costPriceNum = parseFloat(costPrice || 0);
+                                    const isPriceLower = hasCostPrice && unitPrice < costPriceNum;
+                                    const isNoProfit = hasCostPrice && Math.abs(unitPrice - costPriceNum) < 0.01; // Toleransi 0.01 untuk floating point
+                                    
+                                    return (
+                                      <div key={unit.id || idx} className="whitespace-nowrap flex items-center gap-1">
+                                        <span className="text-xs text-gray-400">{unit.name}:</span>{' '}
+                                        <span className={`font-medium ${
+                                          isPriceLower ? 'text-red-600' : 
+                                          isNoProfit ? 'text-yellow-600' : 
+                                          ''
+                                        }`}>
+                                          {formatRupiah(unitPrice)}
+                                        </span>
+                                        {isPriceLower && (
+                                          <ExclamationTriangleIcon 
+                                            className="w-4 h-4 text-red-600" 
+                                            title="Harga jual lebih kecil dari harga beli (RUGI)!"
+                                          />
+                                        )}
+                                        {isNoProfit && !isPriceLower && (
+                                          <ExclamationTriangleIcon 
+                                            className="w-4 h-4 text-yellow-600" 
+                                            title="Harga jual sama dengan harga beli (TIDAK ADA UNTUNG)!"
+                                          />
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                  {sortedUnits.length === 0 && <span>N/A</span>}
                                 </div>
-                              ))}
-                              {sortedUnits.length === 0 && <span>N/A</span>}
-                            </div>
+                              );
+                            })()}
+                          </td>
+                          <td className="px-3 sm:px-6 py-4 text-sm text-gray-500">
+                            {(() => {
+                              // Ambil ProductDistributor default untuk mendapatkan costPrice
+                              const defaultDistributor = product.distributors?.find(d => d.isDefault) || product.distributors?.[0];
+                              const costPrice = defaultDistributor?.costPrice;
+                              
+                              if (costPrice && costPrice > 0) {
+                                // Tampilkan harga beli per unit yang sesuai
+                                // CostPrice disimpan per unit yang digunakan saat PO
+                                // Untuk display, kita tampilkan untuk semua unit dengan costPrice yang sama
+                                return (
+                                  <div className="flex flex-col gap-0.5">
+                                    {sortedUnits.map((unit, idx) => {
+                                      const unitPrice = parseFloat(unit.price || 0);
+                                      const costPriceNum = parseFloat(costPrice || 0);
+                                      const isPriceLower = unitPrice < costPriceNum;
+                                      const isNoProfit = Math.abs(unitPrice - costPriceNum) < 0.01; // Toleransi 0.01 untuk floating point
+                                      
+                                      return (
+                                        <div key={unit.id || idx} className="whitespace-nowrap flex items-center gap-1">
+                                          <span className="text-xs text-gray-400">{unit.name}:</span>{' '}
+                                          <span className={`font-medium ${
+                                            isPriceLower ? 'text-red-600' : 
+                                            isNoProfit ? 'text-yellow-600' : 
+                                            'text-green-600'
+                                          }`}>
+                                            {formatRupiah(costPrice || 0)}
+                                          </span>
+                                          {isPriceLower && (
+                                            <ExclamationTriangleIcon 
+                                              className="w-4 h-4 text-red-600" 
+                                              title="Harga jual lebih kecil dari harga beli (RUGI)!"
+                                            />
+                                          )}
+                                          {isNoProfit && !isPriceLower && (
+                                            <ExclamationTriangleIcon 
+                                              className="w-4 h-4 text-yellow-600" 
+                                              title="Harga jual sama dengan harga beli (TIDAK ADA UNTUNG)!"
+                                            />
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              }
+                              return <span className="text-gray-400">-</span>;
+                            })()}
                           </td>
                           <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {product.distributor?.name || 'N/A'}

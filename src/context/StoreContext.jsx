@@ -699,18 +699,21 @@ export function StoreProvider({ children }) {
     };
 
     // (PageCekPesanan)
-    const confirmPOReceived = async (poToConfirm, receivedQtys, newBarcodeData) => {
+    const confirmPOReceived = async (poToConfirm, receivedQtys, newBarcodeData, invoiceTotalPrices) => {
       try {
         // Pastikan newBarcodeData adalah object (bukan undefined/null)
         const barcodeData = newBarcodeData || {};
         // Pastikan receivedQtys adalah object (bukan undefined/null)
         const receivedQtysData = receivedQtys || {};
+        // Pastikan invoiceTotalPrices adalah object (bukan undefined/null)
+        const invoiceTotalPricesData = invoiceTotalPrices || {};
         
         await apiFetch(`/purchase-orders/${poToConfirm.id}/receive`, {
           method: 'POST',
           body: JSON.stringify({ 
             receivedQtys: receivedQtysData,
-            newBarcodeData: barcodeData 
+            newBarcodeData: barcodeData,
+            invoiceTotalPrices: invoiceTotalPricesData
           }),
         });
         

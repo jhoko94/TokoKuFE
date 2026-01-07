@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useStore } from '../../context/StoreContext';
-import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
 export default function ModalTambahBarangSimple({ productToEdit, onClose, onSave }) {
   const { distributors, saveProduct, getProductByName, fetchProductsPaginated } = useStore();
@@ -562,15 +562,15 @@ export default function ModalTambahBarangSimple({ productToEdit, onClose, onSave
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="bg-blue-600 text-white px-6 py-4 rounded-t-lg">
-          <h2 className="text-xl font-bold">{productToEdit && productToEdit.id ? 'Edit Barang' : 'Tambah Barang Baru'}</h2>
+        <div className="bg-blue-600 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-t-lg">
+          <h2 className="text-lg sm:text-xl font-bold">{productToEdit && productToEdit.id ? 'Edit Barang' : 'Tambah Barang Baru'}</h2>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6">
           {/* Nama Barang - dengan Autocomplete */}
           <div className="mb-4">
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
@@ -645,8 +645,8 @@ export default function ModalTambahBarangSimple({ productToEdit, onClose, onSave
               <div className="space-y-3">
                 {units.map((unit, index) => (
                   <div key={unit.id || index} className="p-3 border border-gray-300 rounded-lg bg-gray-50">
-                    <div className="flex gap-2 items-start">
-                      <div className="flex-1">
+                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-2 items-start">
+                      <div className="flex-1 w-full sm:w-auto">
                         <label className="block text-xs text-gray-600 mb-1">
                           Nama Satuan
                           {unit.conversion === 1 && <span className="text-red-500 ml-1">*</span>}
@@ -661,7 +661,7 @@ export default function ModalTambahBarangSimple({ productToEdit, onClose, onSave
                           placeholder="Contoh: Pcs, Liter, dll"
                         />
                       </div>
-                      <div className="w-24">
+                      <div className="w-full sm:w-24">
                         <label className="block text-xs text-gray-600 mb-1">Konversi</label>
                         <input
                           type="number"
@@ -672,8 +672,8 @@ export default function ModalTambahBarangSimple({ productToEdit, onClose, onSave
                           readOnly
                         />
                       </div>
-                      <div className="flex-1">
-                        <label className="block text-xs text-gray-600 mb-1">Harga</label>
+                      <div className="flex-1 w-full sm:w-auto">
+                        <label className="block text-xs text-gray-600 mb-1">Harga Jual</label>
                         <div className="relative">
                           <span className="absolute left-2 top-1.5 text-xs text-gray-500">Rp</span>
                           <input
@@ -683,10 +683,82 @@ export default function ModalTambahBarangSimple({ productToEdit, onClose, onSave
                               const numericValue = e.target.value.replace(/[^0-9.]/g, '');
                               handleUnitChange(index, 'price', numericValue);
                             }}
-                            className="w-full pl-8 pr-2 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                            className={`w-full pl-8 pr-8 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 bg-white ${
+                              (() => {
+                                // Cek apakah harga jual < harga beli atau = harga beli
+                                if (productToEdit && productToEdit.id) {
+                                  const defaultDistributor = productToEdit.distributors?.find(d => d.isDefault) || productToEdit.distributors?.[0];
+                                  const costPrice = defaultDistributor?.costPrice;
+                                  const unitPrice = parseFloat(unit.price || 0);
+                                  const costPriceNum = parseFloat(costPrice || 0);
+                                  if (costPrice && costPrice > 0) {
+                                    if (unitPrice < costPriceNum) {
+                                      return 'border-red-500 focus:ring-red-500';
+                                    } else if (Math.abs(unitPrice - costPriceNum) < 0.01) { // Toleransi 0.01 untuk floating point
+                                      return 'border-yellow-500 focus:ring-yellow-500';
+                                    }
+                                  }
+                                }
+                                return 'focus:ring-blue-500';
+                              })()
+                            }`}
                             placeholder="0"
                           />
+                          {(() => {
+                            // Tampilkan warning icon jika harga jual < harga beli atau = harga beli
+                            if (productToEdit && productToEdit.id) {
+                              const defaultDistributor = productToEdit.distributors?.find(d => d.isDefault) || productToEdit.distributors?.[0];
+                              const costPrice = defaultDistributor?.costPrice;
+                              const unitPrice = parseFloat(unit.price || 0);
+                              const costPriceNum = parseFloat(costPrice || 0);
+                              if (costPrice && costPrice > 0) {
+                                if (unitPrice < costPriceNum) {
+                                  return (
+                                    <ExclamationTriangleIcon 
+                                      className="absolute right-2 top-1.5 w-4 h-4 text-red-600" 
+                                      title="Harga jual lebih kecil dari harga beli (RUGI)!"
+                                    />
+                                  );
+                                } else if (Math.abs(unitPrice - costPriceNum) < 0.01) { // Toleransi 0.01 untuk floating point
+                                  return (
+                                    <ExclamationTriangleIcon 
+                                      className="absolute right-2 top-1.5 w-4 h-4 text-yellow-600" 
+                                      title="Harga jual sama dengan harga beli (TIDAK ADA UNTUNG)!"
+                                    />
+                                  );
+                                }
+                              }
+                            }
+                            return null;
+                          })()}
                         </div>
+                        {(() => {
+                          // Tampilkan warning message jika harga jual < harga beli atau = harga beli
+                          if (productToEdit && productToEdit.id) {
+                            const defaultDistributor = productToEdit.distributors?.find(d => d.isDefault) || productToEdit.distributors?.[0];
+                            const costPrice = defaultDistributor?.costPrice;
+                            const unitPrice = parseFloat(unit.price || 0);
+                            const costPriceNum = parseFloat(costPrice || 0);
+                            if (costPrice && costPrice > 0) {
+                              if (unitPrice < costPriceNum) {
+                                return (
+                                  <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                                    <ExclamationTriangleIcon className="w-3 h-3" />
+                                    Harga jual lebih kecil dari harga beli (RUGI) - Harga beli: Rp {costPriceNum.toLocaleString('id-ID')}
+                                  </p>
+                                );
+                              } else if (Math.abs(unitPrice - costPriceNum) < 0.01) { // Toleransi 0.01 untuk floating point
+                                return (
+                                  <p className="mt-1 text-xs text-yellow-600 flex items-center gap-1">
+                                    <ExclamationTriangleIcon className="w-3 h-3" />
+                                    Harga jual sama dengan harga beli (TIDAK ADA UNTUNG) - Harga beli: Rp {costPriceNum.toLocaleString('id-ID')}
+                                  </p>
+                                );
+                              }
+                            }
+                          }
+                          return null;
+                        })()}
                       </div>
                       {unit.conversion !== 1 && (
                         <button
@@ -744,7 +816,7 @@ export default function ModalTambahBarangSimple({ productToEdit, onClose, onSave
               {/* Harga */}
               <div className="mb-4">
                 <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-2">
-                  Harga <span className="text-red-500">*</span>
+                  Harga Jual <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-2 text-gray-500">Rp</span>
@@ -814,19 +886,19 @@ export default function ModalTambahBarangSimple({ productToEdit, onClose, onSave
 
 
           {/* Action Buttons */}
-          <div className="flex gap-3 justify-end">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-end">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'Menyimpan...' : 'Simpan'}
             </button>

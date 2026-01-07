@@ -11,6 +11,9 @@ function PageKonfirmasiPesanan() {
   // State untuk menampung jumlah yang benar-benar datang
   // Format: { [itemId]: receivedQty }
   const [receivedQtys, setReceivedQtys] = useState({});
+  // State untuk menampung total harga dari invoice
+  // Format: { [itemId]: invoiceTotalPrice }
+  const [invoiceTotalPrices, setInvoiceTotalPrices] = useState({});
   const [po, setPo] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -68,6 +71,28 @@ function PageKonfirmasiPesanan() {
     }));
   };
 
+  // Handler untuk input total harga invoice
+  const handleInvoiceTotalPriceChange = (itemId, value) => {
+    // Hapus semua karakter selain angka (untuk input yang lebih mudah)
+    // User bisa input angka biasa, sistem akan format sendiri
+    const cleanedValue = value.replace(/[^0-9]/g, '');
+    const price = cleanedValue === '' ? 0 : parseFloat(cleanedValue) || 0;
+    setInvoiceTotalPrices(prev => ({
+      ...prev,
+      [itemId]: price
+    }));
+  };
+
+  // Format angka menjadi format rupiah
+  const formatRupiah = (value) => {
+    if (!value || value === 0) return '';
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0
+    }).format(value);
+  };
+
   // Fungsi untuk validasi jumlah yang datang vs jumlah PO
   const getQtyValidation = (item) => {
     const receivedQty = receivedQtys[item.id] !== undefined ? receivedQtys[item.id] : item.qty;
@@ -90,8 +115,9 @@ function PageKonfirmasiPesanan() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      // Validasi: pastikan semua receivedQty sudah diisi
       const poItems = po.items || [];
+      
+      // Validasi: pastikan semua receivedQty sudah diisi
       const missingQtys = poItems.filter(item => !receivedQtys[item.id] || receivedQtys[item.id] <= 0);
       
       if (missingQtys.length > 0) {
@@ -100,14 +126,32 @@ function PageKonfirmasiPesanan() {
         return;
       }
 
-      // Format data: receivedQtys (barcode di-skip untuk sementara)
+      // Validasi: pastikan semua total harga invoice sudah diisi
+      const missingPrices = poItems.filter(item => {
+        const price = invoiceTotalPrices[item.id];
+        return !price || price <= 0;
+      });
+      
+      if (missingPrices.length > 0) {
+        const productNames = missingPrices.map(item => {
+          const product = products?.find(p => p.id === item.productId) || item.product;
+          return product?.name || item.productName || 'Produk';
+        }).join(', ');
+        alert(`Mohon isi total harga invoice untuk semua item:\n${productNames}`);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Format data: receivedQtys dan invoiceTotalPrices
       const receivedQtysData = {};
+      const invoiceTotalPricesData = {};
       poItems.forEach(item => {
         receivedQtysData[item.id] = receivedQtys[item.id] || item.qty;
+        invoiceTotalPricesData[item.id] = invoiceTotalPrices[item.id];
       });
 
-      // Panggil fungsi global, kirim PO-nya dan receivedQtys (barcode kosong)
-      await confirmPOReceived(po, receivedQtysData, {});
+      // Panggil fungsi global, kirim PO-nya, receivedQtys, dan invoiceTotalPrices
+      await confirmPOReceived(po, receivedQtysData, {}, invoiceTotalPricesData);
       
       // Redirect kembali ke halaman Cek Pesanan setelah sukses
       navigate('/cek-pesanan');
@@ -171,7 +215,7 @@ function PageKonfirmasiPesanan() {
       {/* Form Konfirmasi */}
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow border border-gray-200 p-4 sm:p-6">
         <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
-          Cek dan input jumlah barang yang benar-benar datang:
+          Cek dan input jumlah barang yang benar-benar datang beserta total harga dari invoice:
         </p>
         
         <div id="po-cek-item-list" className="space-y-3 sm:space-y-4 mb-6">
@@ -198,25 +242,45 @@ function PageKonfirmasiPesanan() {
               const productName = product.name || item.productName || 'N/A';
               const receivedQty = receivedQtys[item.id] !== undefined ? receivedQtys[item.id] : item.qty;
               const qtyValidation = getQtyValidation(item);
+              
+              // Cari unit untuk mendapatkan harga saat ini
+              const unit = product.units?.find(u => u.name === item.unitName);
+              const currentPrice = unit?.price ? parseFloat(unit.price) : 0;
+              
+              // Hitung harga per unit baru dari invoice total price
+              const invoiceTotalPrice = invoiceTotalPrices[item.id] || 0;
+              const newPricePerUnit = receivedQty > 0 && invoiceTotalPrice > 0 
+                ? invoiceTotalPrice / receivedQty 
+                : currentPrice;
+              
+              // Format untuk display
+              // Input field menampilkan angka biasa (untuk kemudahan input)
+              const invoiceTotalPriceDisplay = invoiceTotalPrice > 0 ? invoiceTotalPrice.toString() : '';
+              const newPricePerUnitDisplay = newPricePerUnit > 0 ? formatRupiah(newPricePerUnit) : '-';
 
               return (
                 <div key={item.productId || product.id} className="bg-gray-50 p-3 sm:p-4 rounded-lg border border-gray-200 shadow-sm">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-                    {/* Kiri: Info Produk */}
-                    <div className="flex-1">
-                      <p className="font-bold text-gray-800 text-base sm:text-lg">{productName}</p>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Dipesan: <span className="font-medium">{item.qty} {item.unitName || 'Pcs'}</span>
+                  {/* Info Produk */}
+                  <div className="mb-3 sm:mb-4">
+                    <p className="font-bold text-gray-800 text-base sm:text-lg">{productName}</p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Dipesan: <span className="font-medium">{item.qty} {item.unitName || 'Pcs'}</span>
+                    </p>
+                    {currentPrice > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Harga saat ini: <span className="font-medium">{formatRupiah(currentPrice)}</span> per {item.unitName || 'Pcs'}
                       </p>
-                    </div>
-                    
-                    {/* Kanan: Input Jumlah yang Datang (Desktop) */}
-                    <div className="flex-1 sm:flex-none sm:w-auto">
-                      <label className="block text-sm font-medium text-gray-700 mb-2 sm:mb-0 sm:inline sm:mr-2">
-                        <span className="sm:hidden">Jumlah yang Datang:</span>
-                        <span className="hidden sm:inline">Jumlah Datang:</span>
+                    )}
+                  </div>
+                  
+                  {/* Input Fields */}
+                  <div className="space-y-3 sm:space-y-4">
+                    {/* Jumlah Datang */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                      <label className="text-sm font-medium text-gray-700 sm:w-32">
+                        Jumlah Datang:
                       </label>
-                      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                      <div className="flex items-center gap-2 sm:gap-3 flex-1">
                         <input
                           type="text"
                           inputMode="numeric"
@@ -243,6 +307,49 @@ function PageKonfirmasiPesanan() {
                         )}
                       </div>
                     </div>
+                    
+                    {/* Total Harga Invoice */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                      <label className="text-sm font-medium text-gray-700 sm:w-32">
+                        Total Harga Invoice:
+                      </label>
+                      <div className="flex items-center gap-2 sm:gap-3 flex-1">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={invoiceTotalPriceDisplay}
+                          onChange={(e) => handleInvoiceTotalPriceChange(item.id, e.target.value)}
+                          className="flex-1 sm:max-w-xs p-2 sm:p-3 border border-gray-300 rounded-md shadow-sm text-sm sm:text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          required
+                          placeholder="0"
+                        />
+                        {invoiceTotalPriceDisplay && (
+                          <span className="text-xs sm:text-sm text-gray-500">
+                            {formatRupiah(invoiceTotalPrice)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Harga Per Unit (Auto-calculated, Read-only) */}
+                    {receivedQty > 0 && invoiceTotalPrice > 0 && (
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 bg-blue-50 p-2 sm:p-3 rounded-md border border-blue-200">
+                        <label className="text-sm font-medium text-blue-700 sm:w-32">
+                          Harga Per Unit:
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm sm:text-base font-semibold text-blue-800">
+                            {newPricePerUnitDisplay}
+                          </span>
+                          <span className="text-xs text-blue-600">per {item.unitName || 'Pcs'}</span>
+                          {currentPrice > 0 && newPricePerUnit !== currentPrice && (
+                            <span className="text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-800 font-medium">
+                              {newPricePerUnit > currentPrice ? '↑ Naik' : '↓ Turun'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
