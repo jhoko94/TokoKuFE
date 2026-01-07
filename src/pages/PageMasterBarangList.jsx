@@ -298,14 +298,16 @@ function PageMasterBarangList() {
                           </td>
                           <td className="px-3 sm:px-6 py-4 text-sm text-gray-500">
                             {(() => {
-                              // Ambil ProductDistributor default untuk mendapatkan costPrice
+                              // Ambil ProductDistributor default untuk mendapatkan unitCostPrices
                               const defaultDistributor = product.distributors?.find(d => d.isDefault) || product.distributors?.[0];
-                              const costPrice = defaultDistributor?.costPrice;
                               
                               return (
                                 <div className="flex flex-col gap-0.5">
                                   {sortedUnits.map((unit, idx) => {
                                     const unitPrice = parseFloat(unit.price || 0);
+                                    // Cari costPrice untuk unit ini dari unitCostPrices
+                                    const unitCostPrice = defaultDistributor?.unitCostPrices?.find(ucp => ucp.unitId === unit.id);
+                                    const costPrice = unitCostPrice?.costPrice;
                                     const hasCostPrice = costPrice && costPrice > 0;
                                     const costPriceNum = parseFloat(costPrice || 0);
                                     const isPriceLower = hasCostPrice && unitPrice < costPriceNum;
@@ -343,44 +345,57 @@ function PageMasterBarangList() {
                           </td>
                           <td className="px-3 sm:px-6 py-4 text-sm text-gray-500">
                             {(() => {
-                              // Ambil ProductDistributor default untuk mendapatkan costPrice
+                              // Ambil ProductDistributor default untuk mendapatkan unitCostPrices
                               const defaultDistributor = product.distributors?.find(d => d.isDefault) || product.distributors?.[0];
-                              const costPrice = defaultDistributor?.costPrice;
                               
-                              if (costPrice && costPrice > 0) {
-                                // Tampilkan harga beli per unit yang sesuai
-                                // CostPrice disimpan per unit yang digunakan saat PO
-                                // Untuk display, kita tampilkan untuk semua unit dengan costPrice yang sama
+                              // Cek apakah ada unitCostPrices
+                              const hasAnyCostPrice = defaultDistributor?.unitCostPrices && defaultDistributor.unitCostPrices.length > 0;
+                              
+                              if (hasAnyCostPrice) {
                                 return (
                                   <div className="flex flex-col gap-0.5">
                                     {sortedUnits.map((unit, idx) => {
+                                      // Cari costPrice untuk unit ini dari unitCostPrices
+                                      const unitCostPrice = defaultDistributor.unitCostPrices.find(ucp => ucp.unitId === unit.id);
+                                      const costPrice = unitCostPrice?.costPrice;
                                       const unitPrice = parseFloat(unit.price || 0);
-                                      const costPriceNum = parseFloat(costPrice || 0);
-                                      const isPriceLower = unitPrice < costPriceNum;
-                                      const isNoProfit = Math.abs(unitPrice - costPriceNum) < 0.01; // Toleransi 0.01 untuk floating point
                                       
+                                      if (costPrice && costPrice > 0) {
+                                        const costPriceNum = parseFloat(costPrice);
+                                        const isPriceLower = unitPrice < costPriceNum;
+                                        const isNoProfit = Math.abs(unitPrice - costPriceNum) < 0.01; // Toleransi 0.01 untuk floating point
+                                        
+                                        return (
+                                          <div key={unit.id || idx} className="whitespace-nowrap flex items-center gap-1">
+                                            <span className="text-xs text-gray-400">{unit.name}:</span>{' '}
+                                            <span className={`font-medium ${
+                                              isPriceLower ? 'text-red-600' : 
+                                              isNoProfit ? 'text-yellow-600' : 
+                                              'text-green-600'
+                                            }`}>
+                                              {formatRupiah(costPriceNum)}
+                                            </span>
+                                            {isPriceLower && (
+                                              <ExclamationTriangleIcon 
+                                                className="w-4 h-4 text-red-600" 
+                                                title="Harga jual lebih kecil dari harga beli (RUGI)!"
+                                              />
+                                            )}
+                                            {isNoProfit && !isPriceLower && (
+                                              <ExclamationTriangleIcon 
+                                                className="w-4 h-4 text-yellow-600" 
+                                                title="Harga jual sama dengan harga beli (TIDAK ADA UNTUNG)!"
+                                              />
+                                            )}
+                                          </div>
+                                        );
+                                      }
+                                      
+                                      // Jika unit ini tidak punya costPrice, tampilkan "-"
                                       return (
-                                        <div key={unit.id || idx} className="whitespace-nowrap flex items-center gap-1">
+                                        <div key={unit.id || idx} className="whitespace-nowrap">
                                           <span className="text-xs text-gray-400">{unit.name}:</span>{' '}
-                                          <span className={`font-medium ${
-                                            isPriceLower ? 'text-red-600' : 
-                                            isNoProfit ? 'text-yellow-600' : 
-                                            'text-green-600'
-                                          }`}>
-                                            {formatRupiah(costPrice || 0)}
-                                          </span>
-                                          {isPriceLower && (
-                                            <ExclamationTriangleIcon 
-                                              className="w-4 h-4 text-red-600" 
-                                              title="Harga jual lebih kecil dari harga beli (RUGI)!"
-                                            />
-                                          )}
-                                          {isNoProfit && !isPriceLower && (
-                                            <ExclamationTriangleIcon 
-                                              className="w-4 h-4 text-yellow-600" 
-                                              title="Harga jual sama dengan harga beli (TIDAK ADA UNTUNG)!"
-                                            />
-                                          )}
+                                          <span className="text-gray-400">-</span>
                                         </div>
                                       );
                                     })}

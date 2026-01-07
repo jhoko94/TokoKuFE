@@ -688,7 +688,9 @@ export default function ModalTambahBarangSimple({ productToEdit, onClose, onSave
                                 // Cek apakah harga jual < harga beli atau = harga beli
                                 if (productToEdit && productToEdit.id) {
                                   const defaultDistributor = productToEdit.distributors?.find(d => d.isDefault) || productToEdit.distributors?.[0];
-                                  const costPrice = defaultDistributor?.costPrice;
+                                  // Cari costPrice untuk unit ini dari unitCostPrices
+                                  const unitCostPrice = defaultDistributor?.unitCostPrices?.find(ucp => ucp.unitId === unit.id);
+                                  const costPrice = unitCostPrice?.costPrice;
                                   const unitPrice = parseFloat(unit.price || 0);
                                   const costPriceNum = parseFloat(costPrice || 0);
                                   if (costPrice && costPrice > 0) {
@@ -708,7 +710,9 @@ export default function ModalTambahBarangSimple({ productToEdit, onClose, onSave
                             // Tampilkan warning icon jika harga jual < harga beli atau = harga beli
                             if (productToEdit && productToEdit.id) {
                               const defaultDistributor = productToEdit.distributors?.find(d => d.isDefault) || productToEdit.distributors?.[0];
-                              const costPrice = defaultDistributor?.costPrice;
+                              // Cari costPrice untuk unit ini dari unitCostPrices
+                              const unitCostPrice = defaultDistributor?.unitCostPrices?.find(ucp => ucp.unitId === unit.id);
+                              const costPrice = unitCostPrice?.costPrice;
                               const unitPrice = parseFloat(unit.price || 0);
                               const costPriceNum = parseFloat(costPrice || 0);
                               if (costPrice && costPrice > 0) {
@@ -736,7 +740,9 @@ export default function ModalTambahBarangSimple({ productToEdit, onClose, onSave
                           // Tampilkan warning message jika harga jual < harga beli atau = harga beli
                           if (productToEdit && productToEdit.id) {
                             const defaultDistributor = productToEdit.distributors?.find(d => d.isDefault) || productToEdit.distributors?.[0];
-                            const costPrice = defaultDistributor?.costPrice;
+                            // Cari costPrice untuk unit ini dari unitCostPrices
+                            const unitCostPrice = defaultDistributor?.unitCostPrices?.find(ucp => ucp.unitId === unit.id);
+                            const costPrice = unitCostPrice?.costPrice;
                             const unitPrice = parseFloat(unit.price || 0);
                             const costPriceNum = parseFloat(costPrice || 0);
                             if (costPrice && costPrice > 0) {
