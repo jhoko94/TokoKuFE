@@ -730,6 +730,22 @@ export function StoreProvider({ children }) {
       }
     };
 
+    // (PageCekPesanan) - Hapus/Batal PO
+    const deletePO = async (poId) => {
+      try {
+        await apiFetch(`/purchase-orders/${poId}`, {
+          method: 'DELETE',
+        });
+        
+        showToast('PO berhasil dihapus', 'success');
+        
+      } catch (error) {
+        console.error("Gagal menghapus PO:", error);
+        showToast(error.message || 'Gagal menghapus PO', 'error');
+        throw error;
+      }
+    };
+
     // (PageOpname)
     const processStockOpname = async (adjustments) => {
       try {
@@ -1355,6 +1371,7 @@ export function StoreProvider({ children }) {
       getReports,
       createPO,
       confirmPOReceived,
+      deletePO,
       processStockOpname,
       processTransaction, // BARU: Fungsi untuk proses transaksi
       processRetur,

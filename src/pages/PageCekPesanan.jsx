@@ -4,14 +4,17 @@ import { useStore } from '../context/StoreContext';
 import ModalPilihUkuranKertas from '../components/modals/ModalPilihUkuranKertas'; // Modal untuk pilih ukuran kertas
 import Pagination from '../components/Pagination';
 import { generatePOPDF } from '../utils/generatePOPDF';
-import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 function PageCekPesanan() {
-  const { fetchPendingPOsPaginated } = useStore();
+  const { fetchPendingPOsPaginated, deletePO, showToast } = useStore();
   const navigate = useNavigate();
   
   // State untuk PO yang akan didownload (untuk modal pilihan ukuran kertas)
   const [poToDownload, setPoToDownload] = useState(null);
+  // State untuk PO yang akan dihapus (untuk modal konfirmasi)
+  const [poToDelete, setPoToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [pendingPOs, setPendingPOs] = useState([]);
@@ -78,6 +81,32 @@ function PageCekPesanan() {
     }
   };
 
+  // Handler untuk klik tombol Hapus - tampilkan modal konfirmasi
+  const handleDeleteClick = (po) => {
+    setPoToDelete(po);
+  };
+
+  // Handler untuk konfirmasi hapus PO
+  const handleConfirmDelete = async () => {
+    if (!poToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      await deletePO(poToDelete.id);
+      setPoToDelete(null); // Tutup modal setelah sukses
+      
+      // Reload data PO
+      const response = await fetchPendingPOsPaginated(currentPage, itemsPerPage);
+      setPendingPOs(response.data);
+      setPagination(response.pagination);
+    } catch (error) {
+      console.error("Gagal menghapus PO:", error);
+      // Error sudah di-handle di deletePO dengan showToast
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <>
       <div className="page-content p-2 sm:p-4 md:p-8 pb-16 sm:pb-8">
@@ -138,6 +167,14 @@ function PageCekPesanan() {
                     >
                       CEK
                     </button>
+                    <button 
+                      onClick={() => handleDeleteClick(po)}
+                      className="flex-1 sm:flex-none bg-red-600 text-white font-bold py-2.5 px-3 sm:px-4 rounded-lg shadow hover:bg-red-700 active:bg-red-800 flex items-center justify-center gap-2 text-sm sm:text-base min-h-[44px] transition-colors"
+                      title="Hapus PO"
+                    >
+                      <TrashIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+                      <span className="hidden sm:inline">Hapus</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -169,6 +206,68 @@ function PageCekPesanan() {
           onConfirm={handleDownloadPO}
           onCancel={() => setPoToDownload(null)}
         />
+      )}
+
+      {/* Render Modal Konfirmasi Hapus PO (jika poToDelete di-set) */}
+      {poToDelete && (
+        <>
+          {/* Backdrop */}
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => !isDeleting && setPoToDelete(null)}></div>
+          
+          {/* Modal */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+              <h3 className="text-xl font-bold mb-4 text-gray-900">Hapus Pesanan (PO)</h3>
+              
+              <div className="mb-6">
+                <p className="text-gray-700 mb-2">
+                  Apakah Anda yakin ingin menghapus pesanan ini?
+                </p>
+                <div className="bg-gray-50 p-3 rounded border border-gray-200">
+                  <p className="text-sm text-gray-600">
+                    <span className="font-semibold">Supplier:</span> {poToDelete.distributor?.name || 'N/A'}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-semibold">ID:</span> <span className="font-mono text-xs">{poToDelete.id}</span>
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-semibold">Status:</span> {poToDelete.status}
+                  </p>
+                </div>
+                <p className="text-sm text-red-600 mt-3">
+                  ⚠️ Tindakan ini tidak dapat dibatalkan.
+                </p>
+              </div>
+              
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setPoToDelete(null)}
+                  disabled={isDeleting}
+                  className="flex-1 bg-gray-300 text-gray-800 font-bold py-2.5 px-4 rounded-lg hover:bg-gray-400 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Batal
+                </button>
+                <button 
+                  onClick={handleConfirmDelete}
+                  disabled={isDeleting}
+                  className="flex-1 bg-red-600 text-white font-bold py-2.5 px-4 rounded-lg hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isDeleting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Menghapus...</span>
+                    </>
+                  ) : (
+                    <>
+                      <TrashIcon className="w-5 h-5" />
+                      <span>Hapus</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </>
   );
